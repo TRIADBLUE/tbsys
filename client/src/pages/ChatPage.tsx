@@ -5,14 +5,17 @@ import {
   useCreateChatThread,
   useStreamMessage,
   useArchiveChatThread,
+  useChatProviders,
+  useUpdateChatProvider,
 } from "@/hooks/use-chat";
 import { useProjects } from "@/hooks/use-projects";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -20,6 +23,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Plus,
   Send,
@@ -31,6 +41,7 @@ import {
   Wrench,
   Loader2,
   Square,
+  Settings,
 } from "lucide-react";
 import type { ChatThread } from "@shared/types";
 
@@ -38,7 +49,7 @@ export default function ChatPage() {
   const [selectedThreadId, setSelectedThreadId] = useState<number | null>(null);
   const [newThreadTitle, setNewThreadTitle] = useState("");
   const [newThreadRole, setNewThreadRole] = useState<string>("builder");
-  const [newThreadProject, setNewThreadProject] = useState<string>("");
+  const [newThreadProvider, setNewThreadProvider] = useState<string>("");
   const [messageInput, setMessageInput] = useState("");
   const [showNewThread, setShowNewThread] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -49,6 +60,10 @@ export default function ChatPage() {
   const { send, streamingContent, isStreaming, error, abort } = useStreamMessage();
   const archiveThread = useArchiveChatThread();
   const { data: projectData } = useProjects();
+  const { data: providersData } = useChatProviders();
+  const updateProvider = useUpdateChatProvider();
+
+  const enabledProviders = providersData?.providers.filter((p) => p.isEnabled) || [];
 
   // Auto-scroll when new messages arrive or streaming content updates
   useEffect(() => {
@@ -62,13 +77,12 @@ export default function ChatPage() {
     const result = await createThread.mutateAsync({
       title: newThreadTitle.trim(),
       agentRole: newThreadRole as any,
-      projectId: newThreadProject
-        ? parseInt(newThreadProject, 10)
-        : undefined,
+      providerSlug: newThreadProvider || undefined,
     });
 
     setSelectedThreadId(result.thread.id);
     setNewThreadTitle("");
+    setNewThreadProvider("");
     setShowNewThread(false);
   }
 
@@ -81,9 +95,59 @@ export default function ChatPage() {
     await send(selectedThreadId, content);
   }
 
+  function handleToggleProvider(slug: string, enabled: boolean) {
+    updateProvider.mutate({ slug, data: { isEnabled: enabled } });
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Chat</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Chat</h1>
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm">
+              <Settings className="h-4 w-4 mr-2" />
+              Providers
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>AI Providers</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-2">
+              {providersData?.providers.map((provider) => (
+                <div
+                  key={provider.slug}
+                  className="flex items-center justify-between py-2"
+                >
+                  <div>
+                    <Label className="text-sm font-medium">
+                      {provider.displayName}
+                    </Label>
+                    <p className="text-xs text-gray-400">
+                      {provider.providerType}
+                      {provider.defaultForRole && (
+                        <span> &middot; default for {provider.defaultForRole}</span>
+                      )}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={provider.isEnabled}
+                    onCheckedChange={(checked) =>
+                      handleToggleProvider(provider.slug, checked)
+                    }
+                  />
+                </div>
+              ))}
+              {!providersData?.providers.length && (
+                <p className="text-sm text-gray-400 text-center py-4">
+                  No providers configured. Run db:seed to add them.
+                </p>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-200px)]">
         {/* Thread Sidebar */}
@@ -108,20 +172,35 @@ export default function ChatPage() {
                 className="h-8 text-sm"
                 autoFocus
               />
-              <div className="flex gap-2">
-                <Select value={newThreadRole} onValueChange={setNewThreadRole}>
-                  <SelectTrigger className="h-8 text-xs flex-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="builder">Builder</SelectItem>
-                    <SelectItem value="architect">Architect</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button type="submit" size="sm" className="h-8">
-                  Create
-                </Button>
-              </div>
+              <Select value={newThreadRole} onValueChange={setNewThreadRole}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="builder">Builder</SelectItem>
+                  <SelectItem value="architect">Architect</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={newThreadProvider} onValueChange={setNewThreadProvider}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="AI Provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  {enabledProviders.map((p) => (
+                    <SelectItem key={p.slug} value={p.slug}>
+                      {p.displayName}
+                    </SelectItem>
+                  ))}
+                  {enabledProviders.length === 0 && (
+                    <SelectItem value="" disabled>
+                      No providers enabled
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              <Button type="submit" size="sm" className="h-8 w-full">
+                Create
+              </Button>
             </form>
           )}
 
@@ -157,6 +236,11 @@ export default function ChatPage() {
                       >
                         {thread.agentRole}
                       </Badge>
+                      {thread.providerSlug && (
+                        <Badge variant="outline" className="text-xs">
+                          {thread.providerSlug}
+                        </Badge>
+                      )}
                       <span className="text-xs text-gray-400">
                         {new Date(thread.updatedAt).toLocaleDateString()}
                       </span>
