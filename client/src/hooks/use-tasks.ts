@@ -20,6 +20,7 @@ export function useTasks(filters?: {
   priority?: string;
   assignedTo?: number;
   search?: string;
+  sort?: string;
 }) {
   return useQuery({
     queryKey: ["tasks", filters],

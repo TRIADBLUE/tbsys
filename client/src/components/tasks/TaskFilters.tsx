@@ -15,6 +15,7 @@ interface TaskFiltersProps {
     status?: string;
     priority?: string;
     search?: string;
+    sort?: string;
   };
   onChange: (filters: Record<string, string | undefined>) => void;
 }
@@ -68,6 +69,23 @@ export function TaskFilters({ filters, onChange }: TaskFiltersProps) {
           <SelectItem value="high">High</SelectItem>
           <SelectItem value="medium">Medium</SelectItem>
           <SelectItem value="low">Low</SelectItem>
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={filters.sort || "default"}
+        onValueChange={(v) =>
+          onChange({ ...filters, sort: v === "default" ? undefined : v })
+        }
+      >
+        <SelectTrigger className="w-[130px] h-9">
+          <SelectValue placeholder="Sort By" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="default">Default</SelectItem>
+          <SelectItem value="due_date">Due Date</SelectItem>
+          <SelectItem value="priority">Priority</SelectItem>
+          <SelectItem value="created">Newest</SelectItem>
         </SelectContent>
       </Select>
     </div>

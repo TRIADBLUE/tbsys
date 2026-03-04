@@ -6,15 +6,24 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { TaskCreateDialog } from "@/components/tasks/TaskCreateDialog";
+import { ChatCreateDialog } from "@/components/chat/ChatCreateDialog";
+import { ProjectForm } from "@/components/projects/ProjectForm";
 import {
   FolderOpen,
   CheckSquare,
   MessageSquare,
-  GitBranch,
+  FileText,
   Plus,
   ArrowRight,
   Clock,
+  GitBranch,
 } from "lucide-react";
 
 function StatCard({
@@ -56,6 +65,8 @@ const ACTION_ICONS: Record<string, string> = {
 
 export default function DashboardPage() {
   const [taskCreateOpen, setTaskCreateOpen] = useState(false);
+  const [chatCreateOpen, setChatCreateOpen] = useState(false);
+  const [projectCreateOpen, setProjectCreateOpen] = useState(false);
   const { data: stats, isLoading } = useDashboardStats();
   const { data: projectData } = useProjects();
 
@@ -113,33 +124,76 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="text-sm">Quick Actions</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-2">
-            <Button
-              variant="outline"
-              className="w-full justify-start h-auto py-3"
-              onClick={() => setTaskCreateOpen(true)}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              <span className="text-xs">New Task</span>
-            </Button>
-            <Link href="/projects">
-              <Button variant="outline" className="w-full justify-start h-auto py-3">
-                <FolderOpen className="h-4 w-4 mr-2" />
-                <span className="text-xs">Projects</span>
+          <CardContent className="space-y-2">
+            {/* Chat */}
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                className="w-full justify-start h-auto py-3"
+                onClick={() => setChatCreateOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                <span className="text-xs">New Chat</span>
               </Button>
-            </Link>
-            <Link href="/chat">
-              <Button variant="outline" className="w-full justify-start h-auto py-3">
-                <MessageSquare className="h-4 w-4 mr-2" />
-                <span className="text-xs">Open Chat</span>
+              <Link href="/chat">
+                <Button variant="ghost" className="w-full justify-start h-auto py-3">
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  <span className="text-xs">Chats</span>
+                </Button>
+              </Link>
+            </div>
+
+            {/* Tasks */}
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                className="w-full justify-start h-auto py-3"
+                onClick={() => setTaskCreateOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                <span className="text-xs">New Task</span>
               </Button>
-            </Link>
-            <Link href="/docs">
-              <Button variant="outline" className="w-full justify-start h-auto py-3">
-                <GitBranch className="h-4 w-4 mr-2" />
-                <span className="text-xs">Push Docs</span>
+              <Link href="/tasks">
+                <Button variant="ghost" className="w-full justify-start h-auto py-3">
+                  <CheckSquare className="h-4 w-4 mr-2" />
+                  <span className="text-xs">Tasks</span>
+                </Button>
+              </Link>
+            </div>
+
+            {/* Projects */}
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                className="w-full justify-start h-auto py-3"
+                onClick={() => setProjectCreateOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                <span className="text-xs">New Project</span>
               </Button>
-            </Link>
+              <Link href="/projects">
+                <Button variant="ghost" className="w-full justify-start h-auto py-3">
+                  <FolderOpen className="h-4 w-4 mr-2" />
+                  <span className="text-xs">Projects</span>
+                </Button>
+              </Link>
+            </div>
+
+            {/* Docs */}
+            <div className="grid grid-cols-2 gap-2">
+              <Link href="/docs">
+                <Button variant="outline" className="w-full justify-start h-auto py-3">
+                  <FileText className="h-4 w-4 mr-2" />
+                  <span className="text-xs">Push Docs</span>
+                </Button>
+              </Link>
+              <Link href="/docs">
+                <Button variant="ghost" className="w-full justify-start h-auto py-3">
+                  <FileText className="h-4 w-4 mr-2" />
+                  <span className="text-xs">Docs</span>
+                </Button>
+              </Link>
+            </div>
           </CardContent>
         </Card>
 
@@ -278,6 +332,15 @@ export default function DashboardPage() {
       )}
 
       <TaskCreateDialog open={taskCreateOpen} onOpenChange={setTaskCreateOpen} />
+      <ChatCreateDialog open={chatCreateOpen} onOpenChange={setChatCreateOpen} />
+      <Dialog open={projectCreateOpen} onOpenChange={setProjectCreateOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>New Project</DialogTitle>
+          </DialogHeader>
+          <ProjectForm onSuccess={() => setProjectCreateOpen(false)} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

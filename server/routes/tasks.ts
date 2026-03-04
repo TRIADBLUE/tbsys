@@ -31,6 +31,7 @@ export function createTaskRoutes(
           ? parseInt(req.query.assignedTo as string, 10)
           : undefined,
         search: req.query.search as string | undefined,
+        sort: req.query.sort as string | undefined,
         limit: req.query.limit
           ? parseInt(req.query.limit as string, 10)
           : undefined,

@@ -15,6 +15,7 @@ export class TaskService {
     priority?: string;
     assignedTo?: number;
     search?: string;
+    sort?: string;
     limit?: number;
     offset?: number;
   }) {
@@ -38,11 +39,22 @@ export class TaskService {
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
 
+    let orderBy;
+    if (filters.sort === "due_date") {
+      orderBy = [asc(tasks.dueDate), desc(tasks.createdAt)];
+    } else if (filters.sort === "priority") {
+      orderBy = [desc(tasks.priority), desc(tasks.createdAt)];
+    } else if (filters.sort === "created") {
+      orderBy = [desc(tasks.createdAt)];
+    } else {
+      orderBy = [asc(tasks.displayOrder), desc(tasks.createdAt)];
+    }
+
     const rows = await this.db
       .select()
       .from(tasks)
       .where(where)
-      .orderBy(asc(tasks.displayOrder), desc(tasks.createdAt))
+      .orderBy(...orderBy)
       .limit(filters.limit || 100)
       .offset(filters.offset || 0);
 

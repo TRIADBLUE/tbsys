@@ -26,6 +26,7 @@ export default function TasksPage() {
     status: filters.status,
     priority: filters.priority,
     search: filters.search,
+    sort: filters.sort,
   });
   const { data: stats } = useTaskStats();
 
