@@ -50,6 +50,7 @@ export default function ChatPage() {
   const [newThreadTitle, setNewThreadTitle] = useState("");
   const [newThreadRole, setNewThreadRole] = useState<string>("builder");
   const [newThreadProvider, setNewThreadProvider] = useState<string>("");
+  const [newThreadProject, setNewThreadProject] = useState<string>("");
   const [messageInput, setMessageInput] = useState("");
   const [showNewThread, setShowNewThread] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -78,11 +79,13 @@ export default function ChatPage() {
       title: newThreadTitle.trim(),
       agentRole: newThreadRole as any,
       providerSlug: newThreadProvider || undefined,
+      projectId: newThreadProject ? parseInt(newThreadProject, 10) : undefined,
     });
 
     setSelectedThreadId(result.thread.id);
     setNewThreadTitle("");
     setNewThreadProvider("");
+    setNewThreadProject("");
     setShowNewThread(false);
   }
 
@@ -172,6 +175,18 @@ export default function ChatPage() {
                 className="h-8 text-sm"
                 autoFocus
               />
+              <Select value={newThreadProject} onValueChange={setNewThreadProject}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Project (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projectData?.projects?.map((p: any) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.displayName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Select value={newThreadRole} onValueChange={setNewThreadRole}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Role" />

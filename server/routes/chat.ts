@@ -9,6 +9,7 @@ import { validateBody } from "../middleware/validation";
 import type { AuditService } from "../services/audit.service";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { getProvider, getDefaultModel } from "../services/ai/provider-registry";
+import { buildSystemPrompt } from "../services/ai/system-prompts";
 import type { AIProviderType } from "../../shared/types";
 
 export function createChatRoutes(
@@ -125,6 +126,12 @@ export function createChatRoutes(
         // Get conversation history (includes the user message we just added)
         const history = await chatService.getConversationHistory(threadId);
 
+        // Build role-specific system prompt with project context
+        const project = thread.projectId
+          ? await chatService.getProjectForThread(threadId)
+          : null;
+        const systemPrompt = await buildSystemPrompt(agentRole, project);
+
         // Set SSE headers
         res.writeHead(200, {
           "Content-Type": "text/event-stream",
@@ -138,7 +145,7 @@ export function createChatRoutes(
         try {
           const provider = getProvider(providerConfig.providerType as AIProviderType);
 
-          for await (const chunk of provider.chat(history, { model })) {
+          for await (const chunk of provider.chat(history, { model, systemPrompt })) {
             fullResponse += chunk;
             res.write(`data: ${JSON.stringify({ type: "chunk", content: chunk })}\n\n`);
           }

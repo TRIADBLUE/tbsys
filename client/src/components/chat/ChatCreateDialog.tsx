@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useCreateChatThread, useChatProviders } from "@/hooks/use-chat";
+import { useProjects } from "@/hooks/use-projects";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,9 +28,11 @@ export function ChatCreateDialog({ open, onOpenChange }: ChatCreateDialogProps) 
   const [, navigate] = useLocation();
   const createThread = useCreateChatThread();
   const { data: providersData } = useChatProviders();
+  const { data: projectData } = useProjects();
   const [title, setTitle] = useState("");
   const [role, setRole] = useState("builder");
   const [provider, setProvider] = useState("none");
+  const [projectId, setProjectId] = useState("none");
 
   const enabledProviders = providersData?.providers.filter((p) => p.isEnabled) || [];
 
@@ -41,6 +44,7 @@ export function ChatCreateDialog({ open, onOpenChange }: ChatCreateDialogProps) 
       title: title.trim(),
       agentRole: role as any,
       providerSlug: provider !== "none" ? provider : undefined,
+      projectId: projectId !== "none" ? parseInt(projectId, 10) : undefined,
     });
 
     setTitle("");
@@ -67,6 +71,23 @@ export function ChatCreateDialog({ open, onOpenChange }: ChatCreateDialogProps) 
               required
               autoFocus
             />
+          </div>
+
+          <div>
+            <Label>Project</Label>
+            <Select value={projectId} onValueChange={setProjectId}>
+              <SelectTrigger>
+                <SelectValue placeholder="No project" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No project</SelectItem>
+                {projectData?.projects?.map((p: any) => (
+                  <SelectItem key={p.id} value={String(p.id)}>
+                    {p.displayName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

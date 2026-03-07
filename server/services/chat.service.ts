@@ -3,6 +3,7 @@ import {
   chatThreads,
   chatMessages,
   aiProviderConfigs,
+  projects,
 } from "../../shared/schema";
 import type { AuditService } from "./audit.service";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
@@ -176,6 +177,24 @@ export class ChatService {
       role: m.role as "user" | "assistant" | "system",
       content: m.content,
     }));
+  }
+
+  async getProjectForThread(threadId: number) {
+    const [thread] = await this.db
+      .select({ projectId: chatThreads.projectId })
+      .from(chatThreads)
+      .where(eq(chatThreads.id, threadId))
+      .limit(1);
+
+    if (!thread?.projectId) return null;
+
+    const [project] = await this.db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, thread.projectId))
+      .limit(1);
+
+    return project || null;
   }
 
   async updateProvider(slug: string, data: Record<string, unknown>) {
