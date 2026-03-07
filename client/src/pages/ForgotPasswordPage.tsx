@@ -24,14 +24,10 @@ export default function ForgotPasswordPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <img
-            src={BRAND_ASSETS.consoleblue.icon}
-            alt=""
-            className="mx-auto mb-4 w-16 h-16"
+            src={BRAND_ASSETS.consoleblue.logoLockup}
+            alt="Console.Blue"
+            className="mx-auto mb-4 h-12"
           />
-          <h1 className="text-2xl font-bold">
-            <span style={{ color: "#FF44CC" }}>Console.</span>
-            <span style={{ color: "#0000FF" }}>Blue</span>
-          </h1>
         </CardHeader>
         <CardContent>
           {sent ? (

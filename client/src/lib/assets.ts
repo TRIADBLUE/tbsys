@@ -15,6 +15,7 @@ export const BRAND_ASSETS = {
   },
   consoleblue: {
     icon: `${BASE}/brands/consoleblue/icon.png`,
+    logoLockup: `${BASE}/brands/consoleblue/logo-lockup.png`,
   },
   linkblue: {
     icon: `${BASE}/brands/linkblue/icon.png`,
