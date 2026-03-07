@@ -1,6 +1,14 @@
+export interface ChatAttachment {
+  filename: string;
+  mimeType: string;
+  url?: string;
+  base64?: string;
+}
+
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
   content: string;
+  attachments?: ChatAttachment[];
 }
 
 export interface StreamOptions {

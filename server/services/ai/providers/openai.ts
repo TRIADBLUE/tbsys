@@ -17,10 +17,44 @@ export class OpenAIProvider extends AIProvider {
     }
 
     for (const m of messages) {
-      formattedMessages.push({
-        role: m.role,
-        content: m.content,
-      } as OpenAI.ChatCompletionMessageParam);
+      const imageAttachments = m.attachments?.filter((a) =>
+        a.mimeType.startsWith("image/"),
+      );
+
+      if (imageAttachments?.length && m.role === "user") {
+        const content: OpenAI.ChatCompletionContentPart[] = [];
+
+        for (const att of imageAttachments) {
+          if (att.base64) {
+            content.push({
+              type: "image_url",
+              image_url: {
+                url: `data:${att.mimeType};base64,${att.base64}`,
+              },
+            });
+          }
+        }
+
+        // Add non-image attachments as text
+        const docAttachments = m.attachments?.filter(
+          (a) => !a.mimeType.startsWith("image/"),
+        );
+        if (docAttachments?.length) {
+          const docText = docAttachments
+            .map((a) => `[Attached file: ${a.filename}]\n${a.base64 ? Buffer.from(a.base64, "base64").toString("utf-8") : ""}`)
+            .join("\n\n");
+          content.push({ type: "text", text: docText });
+        }
+
+        content.push({ type: "text", text: m.content });
+
+        formattedMessages.push({ role: "user", content });
+      } else {
+        formattedMessages.push({
+          role: m.role,
+          content: m.content,
+        } as OpenAI.ChatCompletionMessageParam);
+      }
     }
 
     const stream = await this.client.chat.completions.create({

@@ -66,7 +66,7 @@ export function useStreamMessage() {
   const abortRef = useRef<AbortController | null>(null);
 
   const send = useCallback(
-    async (threadId: number, content: string) => {
+    async (threadId: number, content: string, attachments?: { filename: string; mimeType: string; base64: string }[]) => {
       setStreamingContent("");
       setIsStreaming(true);
       setError(null);
@@ -75,10 +75,15 @@ export function useStreamMessage() {
       abortRef.current = controller;
 
       try {
+        const body: Record<string, unknown> = { content };
+        if (attachments?.length) {
+          body.attachments = attachments;
+        }
+
         const res = await fetch(`/api/chat/threads/${threadId}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content }),
+          body: JSON.stringify(body),
           signal: controller.signal,
         });
 

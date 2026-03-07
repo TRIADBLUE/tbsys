@@ -117,14 +117,20 @@ export class ChatService {
 
   async addMessage(
     threadId: number,
-    data: { content: string; role?: string },
+    data: { content: string; role?: string; attachments?: any[] },
   ) {
+    const metadata: Record<string, unknown> = {};
+    if (data.attachments?.length) {
+      metadata.attachments = data.attachments;
+    }
+
     const [message] = await this.db
       .insert(chatMessages)
       .values({
         threadId,
         role: (data.role as any) || "user",
         content: data.content,
+        metadata,
       })
       .returning();
 
@@ -176,6 +182,7 @@ export class ChatService {
     return messages.map((m) => ({
       role: m.role as "user" | "assistant" | "system",
       content: m.content,
+      attachments: (m.metadata as any)?.attachments || undefined,
     }));
   }
 

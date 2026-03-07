@@ -35,6 +35,8 @@ import {
   Bot,
   User,
   Cpu,
+  Paperclip,
+  X,
   Wrench,
   Loader2,
   Square,
@@ -63,18 +65,56 @@ function ChatPane({
   const { send, streamingContent, isStreaming, error, abort } =
     useStreamMessage();
   const [messageInput, setMessageInput] = useState("");
+  const [stagedFiles, setStagedFiles] = useState<
+    { filename: string; mimeType: string; base64: string; preview?: string }[]
+  >([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [threadDetail?.messages, streamingContent]);
 
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files) return;
+
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.split(",")[1];
+        const preview = file.type.startsWith("image/") ? result : undefined;
+        setStagedFiles((prev) => [
+          ...prev,
+          { filename: file.name, mimeType: file.type, base64, preview },
+        ]);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+  }
+
+  function removeStaged(index: number) {
+    setStagedFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     if (!messageInput.trim() || !threadId || isStreaming) return;
     const content = messageInput.trim();
+    const attachments = stagedFiles.length
+      ? stagedFiles.map(({ filename, mimeType, base64 }) => ({
+          filename,
+          mimeType,
+          base64,
+        }))
+      : undefined;
     setMessageInput("");
-    await send(threadId, content);
+    setStagedFiles([]);
+    await send(threadId, content, attachments);
   }
 
   const Icon = role === "architect" ? Cpu : Wrench;
@@ -116,28 +156,46 @@ function ChatPane({
       {/* Messages — compact */}
       <ScrollArea className="flex-1 px-3 py-2">
         <div className="space-y-2">
-          {threadDetail?.messages.map((msg: ChatMessage) => (
-            <div key={msg.id}>
-              {msg.role === "user" ? (
-                <div className="flex items-start gap-1.5">
-                  <User className="h-3 w-3 text-gray-400 mt-0.5 flex-shrink-0" />
-                  <p className="text-xs text-gray-600 whitespace-pre-wrap">
-                    {msg.content}
-                  </p>
-                </div>
-              ) : (
-                <div className="flex items-start gap-1.5">
-                  <Bot
-                    className="h-3 w-3 mt-0.5 flex-shrink-0"
-                    style={{ color: colorAccent }}
-                  />
-                  <p className="text-xs text-gray-800 whitespace-pre-wrap">
-                    {msg.content}
-                  </p>
-                </div>
-              )}
-            </div>
-          ))}
+          {threadDetail?.messages.map((msg: ChatMessage) => {
+            const attachments = (msg.metadata as any)?.attachments as
+              | { filename: string; mimeType: string }[]
+              | undefined;
+            return (
+              <div key={msg.id}>
+                {attachments?.length ? (
+                  <div className="flex gap-1 mb-1 ml-4">
+                    {attachments.map((a, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-0.5 text-[10px] text-gray-400 bg-gray-50 rounded px-1"
+                      >
+                        <Paperclip className="h-2 w-2" />
+                        {a.filename}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                {msg.role === "user" ? (
+                  <div className="flex items-start gap-1.5">
+                    <User className="h-3 w-3 text-gray-400 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-gray-600 whitespace-pre-wrap">
+                      {msg.content}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-1.5">
+                    <Bot
+                      className="h-3 w-3 mt-0.5 flex-shrink-0"
+                      style={{ color: colorAccent }}
+                    />
+                    <p className="text-xs text-gray-800 whitespace-pre-wrap">
+                      {msg.content}
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
 
           {isStreaming && streamingContent && (
             <div className="flex items-start gap-1.5">
@@ -174,11 +232,59 @@ function ChatPane({
         </div>
       </ScrollArea>
 
+      {/* Staged files */}
+      {stagedFiles.length > 0 && (
+        <div className="flex gap-1.5 px-2 pt-2 flex-wrap">
+          {stagedFiles.map((f, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-1 bg-gray-100 rounded px-1.5 py-0.5 text-[10px] text-gray-600"
+            >
+              {f.preview ? (
+                <img
+                  src={f.preview}
+                  alt=""
+                  className="h-4 w-4 rounded object-cover"
+                />
+              ) : (
+                <Paperclip className="h-2.5 w-2.5" />
+              )}
+              <span className="truncate max-w-[80px]">{f.filename}</span>
+              <button
+                type="button"
+                onClick={() => removeStaged(i)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Input */}
       <form
         onSubmit={handleSend}
         className="flex items-center gap-1.5 p-2 border-t"
       >
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          multiple
+          accept="image/*,.pdf,.txt,.md,.json,.ts,.tsx,.js,.jsx,.py,.css,.html,.csv"
+          onChange={handleFileSelect}
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 w-7 p-0 text-gray-400 hover:text-gray-600"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isStreaming}
+        >
+          <Paperclip className="h-3 w-3" />
+        </Button>
         <Input
           value={messageInput}
           onChange={(e) => setMessageInput(e.target.value)}

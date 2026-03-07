@@ -272,9 +272,17 @@ export const createChatThreadSchema = z.object({
   modelId: z.string().max(100).optional(),
 });
 
+export const chatAttachmentSchema = z.object({
+  filename: z.string(),
+  mimeType: z.string(),
+  url: z.string().optional(),
+  base64: z.string().optional(),
+});
+
 export const sendChatMessageSchema = z.object({
   content: z.string().min(1),
   role: z.enum(["user", "assistant", "system"]).optional().default("user"),
+  attachments: z.array(chatAttachmentSchema).optional(),
 });
 
 export const updateProviderConfigSchema = z.object({
