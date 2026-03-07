@@ -247,7 +247,8 @@ export default function ChatPage() {
     null,
   );
   const [builderThreadId, setBuilderThreadId] = useState<number | null>(null);
-  const [providerSlug, setProviderSlug] = useState<string>("");
+  const [architectProvider, setArchitectProvider] = useState<string>("");
+  const [builderProvider, setBuilderProvider] = useState<string>("");
 
   const { data: projectData } = useProjects();
   const { data: providersData } = useChatProviders();
@@ -289,14 +290,15 @@ export default function ChatPage() {
     const project = projects.find((p) => p.id === pid);
     if (!project) return;
 
-    const provider = providerSlug || enabledProviders[0]?.slug || undefined;
+    const archProv = architectProvider || enabledProviders[0]?.slug || undefined;
+    const buildProv = builderProvider || enabledProviders[0]?.slug || undefined;
 
     // Create architect thread if none exists
     if (!architectThreadId) {
       const arch = await createThread.mutateAsync({
         title: `${project.displayName} — Architect`,
         agentRole: "architect",
-        providerSlug: provider,
+        providerSlug: archProv,
         projectId: pid,
       });
       setArchitectThreadId(arch.thread.id);
@@ -307,7 +309,7 @@ export default function ChatPage() {
       const build = await createThread.mutateAsync({
         title: `${project.displayName} — Builder`,
         agentRole: "builder",
-        providerSlug: provider,
+        providerSlug: buildProv,
         projectId: pid,
       });
       setBuilderThreadId(build.thread.id);
@@ -346,25 +348,50 @@ export default function ChatPage() {
             </SelectContent>
           </Select>
 
-          {/* Provider Selector */}
+          {/* Provider Selectors */}
           {selectedProjectId && (
-            <Select value={providerSlug} onValueChange={setProviderSlug}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="AI Provider" />
-              </SelectTrigger>
-              <SelectContent>
-                {enabledProviders.map((p) => (
-                  <SelectItem key={p.slug} value={p.slug}>
-                    {p.displayName}
-                  </SelectItem>
-                ))}
-                {enabledProviders.length === 0 && (
-                  <SelectItem value="__none" disabled>
-                    Enable a provider first
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
+            <>
+              <div className="flex items-center gap-1.5">
+                <Cpu className="h-4 w-4 text-purple-500" />
+                <Select value={architectProvider} onValueChange={setArchitectProvider}>
+                  <SelectTrigger className="w-40 h-9">
+                    <SelectValue placeholder="Architect AI" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {enabledProviders.map((p) => (
+                      <SelectItem key={p.slug} value={p.slug}>
+                        {p.displayName}
+                      </SelectItem>
+                    ))}
+                    {enabledProviders.length === 0 && (
+                      <SelectItem value="__none" disabled>
+                        Enable a provider
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Wrench className="h-4 w-4 text-blue-500" />
+                <Select value={builderProvider} onValueChange={setBuilderProvider}>
+                  <SelectTrigger className="w-40 h-9">
+                    <SelectValue placeholder="Builder AI" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {enabledProviders.map((p) => (
+                      <SelectItem key={p.slug} value={p.slug}>
+                        {p.displayName}
+                      </SelectItem>
+                    ))}
+                    {enabledProviders.length === 0 && (
+                      <SelectItem value="__none" disabled>
+                        Enable a provider
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
           )}
 
           {/* Start Button */}
