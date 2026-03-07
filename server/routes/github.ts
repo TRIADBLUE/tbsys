@@ -143,6 +143,37 @@ export function createGithubRoutes(
     },
   );
 
+  // POST /api/github/push-file — commit a file to a repo
+  router.post("/push-file", async (req, res, next) => {
+    try {
+      const { repo, path, content, message, branch } = req.body || {};
+      if (!repo || !path || !content || !message) {
+        return res.status(400).json({
+          error: "Bad Request",
+          message: "repo, path, content, and message are required",
+        });
+      }
+
+      const result = await githubService.pushFile({
+        repo,
+        path,
+        content,
+        message,
+        branch,
+      });
+
+      await auditService.log({
+        action: "push_file",
+        entityType: "github_file",
+        metadata: { repo, path, branch, commitSha: result.commitSha },
+      });
+
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // POST /api/github/sync — manual sync trigger
   router.post("/sync", async (req, res, next) => {
     try {

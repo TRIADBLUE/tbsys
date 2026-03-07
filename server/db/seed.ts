@@ -49,6 +49,15 @@ export const SEED_AI_PROVIDERS = [
     displayOrder: 4,
   },
   {
+    slug: "kimi",
+    displayName: "Kimi (Moonshot)",
+    providerType: "kimi" as const,
+    isEnabled: false,
+    modelTiers: { builder: "moonshot-v1-8k", architect: "moonshot-v1-32k" },
+    config: { baseUrl: "https://api.moonshot.cn/v1" },
+    displayOrder: 5,
+  },
+  {
     slug: "replit",
     displayName: "Replit Agent",
     providerType: "replit" as const,
@@ -56,7 +65,7 @@ export const SEED_AI_PROVIDERS = [
     defaultForRole: "builder" as const,
     modelTiers: { builder: "replit-agent" },
     config: {},
-    displayOrder: 5,
+    displayOrder: 6,
   },
 ];
 

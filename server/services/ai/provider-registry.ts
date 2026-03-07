@@ -5,6 +5,7 @@ import { OpenAIProvider } from "./providers/openai";
 import { GoogleProvider } from "./providers/google";
 import { DeepSeekProvider } from "./providers/deepseek";
 import { GroqProvider } from "./providers/groq";
+import { KimiProvider } from "./providers/kimi";
 
 const ENV_KEYS: Record<string, string> = {
   anthropic: "ANTHROPIC_API_KEY",
@@ -12,6 +13,7 @@ const ENV_KEYS: Record<string, string> = {
   google: "GOOGLE_AI_API_KEY",
   deepseek: "DEEPSEEK_API_KEY",
   groq: "GROQ_API_KEY",
+  kimi: "KIMI_API_KEY",
 };
 
 const DEFAULT_MODELS: Record<string, string> = {
@@ -20,6 +22,7 @@ const DEFAULT_MODELS: Record<string, string> = {
   google: "gemini-2.0-flash",
   deepseek: "deepseek-chat",
   groq: "llama-3.3-70b-versatile",
+  kimi: "moonshot-v1-8k",
 };
 
 export function getProvider(providerType: AIProviderType): AIProvider {
@@ -41,6 +44,8 @@ export function getProvider(providerType: AIProviderType): AIProvider {
       return new DeepSeekProvider(apiKey);
     case "groq":
       return new GroqProvider(apiKey);
+    case "kimi":
+      return new KimiProvider(apiKey);
     default:
       throw new Error(`Unsupported provider type: ${providerType}`);
   }
