@@ -35,7 +35,7 @@ export function createAuthRoutes(db: NodePgDatabase) {
 
     const resend = new Resend(resendKey);
     await resend.emails.send({
-      from: process.env.EMAIL_FROM || "Console.Blue <noreply@triadblue.com>",
+      from: process.env.EMAIL_FROM || "Console.Blue <dev@console.blue>",
       to: email,
       subject: "Sign in to Console.Blue",
       html: `
