@@ -52,7 +52,11 @@ import {
   Check,
   Trash2,
   GitCommit,
+  GitPullRequest,
   Eye,
+  History,
+  Upload,
+  ShieldCheck,
 } from "lucide-react";
 import type { ChatThread, ChatMessage } from "@shared/types";
 
@@ -63,7 +67,7 @@ interface ProposedFile {
   filePath: string;
   content: string;
   sourceRole: "architect" | "builder";
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "committed" | "pushed" | "rejected";
 }
 
 interface ProposalContextType {
@@ -71,6 +75,8 @@ interface ProposalContextType {
   addProposal: (filePath: string, content: string, sourceRole: "architect" | "builder") => void;
   removeProposal: (id: string) => void;
   approveProposal: (id: string) => void;
+  commitProposal: (id: string) => void;
+  pushProposal: (id: string) => void;
   rejectProposal: (id: string) => void;
   clearAll: () => void;
 }
@@ -80,6 +86,8 @@ const ProposalContext = createContext<ProposalContextType>({
   addProposal: () => {},
   removeProposal: () => {},
   approveProposal: () => {},
+  commitProposal: () => {},
+  pushProposal: () => {},
   rejectProposal: () => {},
   clearAll: () => {},
 });
@@ -449,18 +457,18 @@ function ChatPane({
 
 function StagingPanel({
   repo,
-  onCommit,
+  onPush,
 }: {
   repo: string | null;
-  onCommit: (filePath: string, content: string, message: string) => Promise<void>;
+  onPush: (filePath: string, content: string, message: string) => Promise<void>;
 }) {
-  const { proposals, removeProposal, approveProposal, rejectProposal, clearAll } =
+  const { proposals, removeProposal, approveProposal, commitProposal, pushProposal, rejectProposal, clearAll } =
     useProposals();
-  const [activeTab, setActiveTab] = useState<"staging" | "browse">("staging");
+  const [activeTab, setActiveTab] = useState<"staging" | "commits" | "browse">("staging");
   const [currentPath, setCurrentPath] = useState("");
   const [viewingFile, setViewingFile] = useState<string | null>(null);
   const [commitMsg, setCommitMsg] = useState("");
-  const [committing, setCommitting] = useState<string | null>(null);
+  const [pushing, setPushing] = useState<string | null>(null);
   const [selectedProposal, setSelectedProposal] = useState<string | null>(null);
 
   useEffect(() => {
@@ -473,6 +481,7 @@ function StagingPanel({
     if (proposals.length > 0) setActiveTab("staging");
   }, [proposals.length]);
 
+  // GitHub queries
   const { data: treeData, isLoading: treeLoading } = useQuery({
     queryKey: ["github-tree", repo, currentPath],
     queryFn: () =>
@@ -493,20 +502,33 @@ function StagingPanel({
     enabled: !!repo && !!viewingFile && activeTab === "browse",
   });
 
-  async function handleCommitProposal(proposal: ProposedFile) {
+  const { data: commitsData, isLoading: commitsLoading } = useQuery({
+    queryKey: ["github-commits", repo],
+    queryFn: () =>
+      apiClient.get<{
+        commits: { sha: string; message: string; author: string; date: string; url: string }[];
+      }>("/github/commits", { repo: repo!, count: "15" }),
+    enabled: !!repo && activeTab === "commits",
+    refetchInterval: 30000,
+  });
+
+  async function handlePushProposal(proposal: ProposedFile) {
     if (!repo || !commitMsg.trim()) return;
-    setCommitting(proposal.id);
+    setPushing(proposal.id);
     try {
-      await onCommit(proposal.filePath, proposal.content, commitMsg.trim());
-      approveProposal(proposal.id);
+      await onPush(proposal.filePath, proposal.content, commitMsg.trim());
+      pushProposal(proposal.id);
       setCommitMsg("");
-      setCommitting(null);
+      setPushing(null);
     } catch {
-      setCommitting(null);
+      setPushing(null);
     }
   }
 
   const activeProposal = proposals.find((p) => p.id === selectedProposal);
+  const pendingCount = proposals.filter((p) => p.status === "pending").length;
+  const approvedCount = proposals.filter((p) => p.status === "approved").length;
+  const committedCount = proposals.filter((p) => p.status === "committed").length;
 
   if (!repo) {
     return (
@@ -515,6 +537,24 @@ function StagingPanel({
         <p className="text-sm">Select a project to start</p>
       </div>
     );
+  }
+
+  // Status badge helper
+  function statusBadge(status: string) {
+    switch (status) {
+      case "pending":
+        return <Badge className="text-[10px] bg-yellow-900 text-yellow-300 border-yellow-700">needs review</Badge>;
+      case "approved":
+        return <Badge className="text-[10px] bg-blue-900 text-blue-300 border-blue-700">approved</Badge>;
+      case "committed":
+        return <Badge className="text-[10px] bg-purple-900 text-purple-300 border-purple-700">committed</Badge>;
+      case "pushed":
+        return <Badge className="text-[10px] bg-green-900 text-green-300 border-green-700">pushed</Badge>;
+      case "rejected":
+        return <Badge className="text-[10px] bg-red-900 text-red-300 border-red-700">rejected</Badge>;
+      default:
+        return null;
+    }
   }
 
   return (
@@ -531,11 +571,22 @@ function StagingPanel({
         >
           <GitCommit className="h-3 w-3 inline mr-1.5" />
           Staging
-          {proposals.filter((p) => p.status === "pending").length > 0 && (
+          {(pendingCount + approvedCount + committedCount) > 0 && (
             <span className="ml-1.5 bg-blue-600 text-white text-[10px] rounded-full px-1.5">
-              {proposals.filter((p) => p.status === "pending").length}
+              {pendingCount + approvedCount + committedCount}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => setActiveTab("commits")}
+          className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors ${
+            activeTab === "commits"
+              ? "border-blue-500 text-blue-400"
+              : "border-transparent text-gray-400 hover:text-gray-300"
+          }`}
+        >
+          <History className="h-3 w-3 inline mr-1.5" />
+          Commits
         </button>
         <button
           onClick={() => { setActiveTab("browse"); setViewingFile(null); }}
@@ -546,7 +597,7 @@ function StagingPanel({
           }`}
         >
           <FolderOpen className="h-3 w-3 inline mr-1.5" />
-          Browse Repo
+          Files
         </button>
         <div className="ml-auto flex items-center gap-1.5 px-3 text-xs text-gray-500">
           <GitBranch className="h-3 w-3" />
@@ -589,21 +640,7 @@ function StagingPanel({
                           from {p.sourceRole}
                         </span>
                       </div>
-                      {p.status === "pending" && (
-                        <Badge className="text-[10px] bg-yellow-900 text-yellow-300 border-yellow-700">
-                          pending
-                        </Badge>
-                      )}
-                      {p.status === "approved" && (
-                        <Badge className="text-[10px] bg-green-900 text-green-300 border-green-700">
-                          committed
-                        </Badge>
-                      )}
-                      {p.status === "rejected" && (
-                        <Badge className="text-[10px] bg-red-900 text-red-300 border-red-700">
-                          rejected
-                        </Badge>
-                      )}
+                      {statusBadge(p.status)}
                       <button
                         onClick={(e) => { e.stopPropagation(); removeProposal(p.id); }}
                         className="text-gray-600 hover:text-gray-400"
@@ -636,34 +673,81 @@ function StagingPanel({
                       {activeProposal.content}
                     </pre>
 
-                    {/* Commit controls */}
-                    {activeProposal.status === "pending" && activeProposal.filePath && (
+                    {/* Step 1: Architect approves (pending → approved) */}
+                    {activeProposal.status === "pending" && (
                       <div className="mt-3 flex items-center gap-2">
-                        <Input
-                          value={commitMsg}
-                          onChange={(e) => setCommitMsg(e.target.value)}
-                          placeholder="Commit message..."
-                          className="flex-1 h-8 text-xs bg-gray-800 border-gray-700 text-gray-300"
-                        />
                         <Button
                           size="sm"
-                          className="h-8 text-xs"
-                          disabled={!commitMsg.trim() || committing === activeProposal.id}
-                          onClick={() => handleCommitProposal(activeProposal)}
+                          className="h-8 text-xs flex-1 bg-blue-600 hover:bg-blue-700"
+                          onClick={() => approveProposal(activeProposal.id)}
                         >
-                          {committing === activeProposal.id ? (
-                            <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                          ) : (
-                            <GitCommit className="h-3 w-3 mr-1" />
-                          )}
-                          Commit to GitHub
+                          <ShieldCheck className="h-3 w-3 mr-1.5" />
+                          Architect Approve
                         </Button>
+                        <button
+                          onClick={() => rejectProposal(activeProposal.id)}
+                          className="text-[10px] px-3 py-1.5 rounded bg-red-900/50 text-red-400 hover:bg-red-900"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Step 2: Commit (approved → committed) */}
+                    {activeProposal.status === "approved" && activeProposal.filePath && (
+                      <div className="mt-3">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={commitMsg}
+                            onChange={(e) => setCommitMsg(e.target.value)}
+                            placeholder="Commit message..."
+                            className="flex-1 h-8 text-xs bg-gray-800 border-gray-700 text-gray-300"
+                          />
+                          <Button
+                            size="sm"
+                            className="h-8 text-xs"
+                            disabled={!commitMsg.trim()}
+                            onClick={() => {
+                              commitProposal(activeProposal.id);
+                            }}
+                          >
+                            <GitCommit className="h-3 w-3 mr-1" />
+                            Commit
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Step 3: Push to GitHub (committed → pushed) */}
+                    {activeProposal.status === "committed" && (
+                      <div className="mt-3 flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs flex-1 bg-green-600 hover:bg-green-700"
+                          disabled={pushing === activeProposal.id}
+                          onClick={() => handlePushProposal(activeProposal)}
+                        >
+                          {pushing === activeProposal.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin mr-1.5" />
+                          ) : (
+                            <Upload className="h-3 w-3 mr-1.5" />
+                          )}
+                          Push to GitHub
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Pushed success */}
+                    {activeProposal.status === "pushed" && (
+                      <div className="mt-3 flex items-center gap-2 text-green-400 text-xs">
+                        <Check className="h-3.5 w-3.5" />
+                        Pushed to GitHub successfully
                       </div>
                     )}
                   </div>
                 )}
 
-                {proposals.filter((p) => p.status !== "pending").length > 0 && (
+                {proposals.filter((p) => p.status === "pushed" || p.status === "rejected").length > 0 && (
                   <div className="mt-4 pt-3 border-t border-gray-700">
                     <button
                       onClick={clearAll}
@@ -674,6 +758,50 @@ function StagingPanel({
                   </div>
                 )}
               </div>
+            )}
+          </div>
+        ) : activeTab === "commits" ? (
+          // Commits tab
+          <div className="p-3">
+            {commitsLoading ? (
+              <div className="flex items-center justify-center py-8 text-gray-500">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                <span className="text-xs">Loading commits...</span>
+              </div>
+            ) : commitsData?.commits?.length ? (
+              <div className="space-y-1">
+                {commitsData.commits.map((c) => (
+                  <a
+                    key={c.sha}
+                    href={c.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block px-3 py-2 rounded hover:bg-gray-800 transition-colors group"
+                  >
+                    <div className="flex items-start gap-2">
+                      <GitCommit className="h-3.5 w-3.5 text-gray-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-gray-300 truncate group-hover:text-blue-400">
+                          {c.message.split("\n")[0]}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] text-gray-500 font-mono">
+                            {c.sha.slice(0, 7)}
+                          </span>
+                          <span className="text-[10px] text-gray-600">
+                            {c.author}
+                          </span>
+                          <span className="text-[10px] text-gray-600">
+                            {new Date(c.date).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500 text-center py-8">No commits found</p>
             )}
           </div>
         ) : (
@@ -826,6 +954,18 @@ export default function ChatPage() {
     );
   }, []);
 
+  const commitProposal = useCallback((id: string) => {
+    setProposals((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, status: "committed" as const } : p)),
+    );
+  }, []);
+
+  const pushProposal = useCallback((id: string) => {
+    setProposals((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, status: "pushed" as const } : p)),
+    );
+  }, []);
+
   const rejectProposal = useCallback((id: string) => {
     setProposals((prev) =>
       prev.map((p) => (p.id === id ? { ...p, status: "rejected" as const } : p)),
@@ -833,7 +973,7 @@ export default function ChatPage() {
   }, []);
 
   const clearAll = useCallback(() => {
-    setProposals((prev) => prev.filter((p) => p.status === "pending"));
+    setProposals((prev) => prev.filter((p) => p.status === "pending" || p.status === "approved" || p.status === "committed"));
   }, []);
 
   const proposalCtx: ProposalContextType = {
@@ -841,12 +981,14 @@ export default function ChatPage() {
     addProposal,
     removeProposal,
     approveProposal,
+    commitProposal,
+    pushProposal,
     rejectProposal,
     clearAll,
   };
 
-  // Commit handler
-  async function handleCommit(filePath: string, content: string, message: string) {
+  // Push handler — actually sends to GitHub
+  async function handlePush(filePath: string, content: string, message: string) {
     if (!selectedProject?.githubRepo) throw new Error("No repo configured");
     await apiClient.post("/github/push-file", {
       repo: selectedProject.githubRepo,
@@ -1060,7 +1202,7 @@ export default function ChatPage() {
             pendingHandoff={architectHandoff}
             clearHandoff={() => setArchitectHandoff(null)}
           />
-          <StagingPanel repo={selectedProject?.githubRepo || null} onCommit={handleCommit} />
+          <StagingPanel repo={selectedProject?.githubRepo || null} onPush={handlePush} />
           <ChatPane
             role="builder"
             threadId={builderThreadId}
