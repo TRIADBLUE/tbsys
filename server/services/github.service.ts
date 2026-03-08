@@ -12,7 +12,7 @@ class GitHubService {
       );
     }
     this.octokit = new Octokit({ auth: token });
-    this.owner = process.env.GITHUB_OWNER || "triadblue";
+    this.owner = process.env.GITHUB_OWNER || "TRIADBLUE";
   }
 
   get ownerName() {
@@ -24,9 +24,8 @@ class GitHubService {
   }
 
   async listRepos() {
-    const { data } = await this.octokit.rest.repos.listForUser({
-      username: this.owner,
-      type: "owner",
+    const { data } = await this.octokit.rest.repos.listForOrg({
+      org: this.owner,
       sort: "updated",
       per_page: 100,
     });
