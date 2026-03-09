@@ -10,7 +10,7 @@ export const SEED_AI_PROVIDERS = [
     defaultForRole: "architect" as const,
     modelTiers: { builder: "claude-sonnet-4-6", architect: "claude-opus-4-6" },
     config: {},
-    displayOrder: 0,
+    displayOrder: 1,
   },
   {
     slug: "openai",
@@ -19,7 +19,7 @@ export const SEED_AI_PROVIDERS = [
     isEnabled: false,
     modelTiers: { builder: "gpt-4o", architect: "gpt-4o" },
     config: {},
-    displayOrder: 1,
+    displayOrder: 2,
   },
   {
     slug: "google",
@@ -28,7 +28,7 @@ export const SEED_AI_PROVIDERS = [
     isEnabled: false,
     modelTiers: { builder: "gemini-2.0-flash", architect: "gemini-2.5-pro" },
     config: {},
-    displayOrder: 2,
+    displayOrder: 3,
   },
   {
     slug: "deepseek",
@@ -37,7 +37,7 @@ export const SEED_AI_PROVIDERS = [
     isEnabled: false,
     modelTiers: { builder: "deepseek-chat", architect: "deepseek-reasoner" },
     config: { baseUrl: "https://api.deepseek.com/v1" },
-    displayOrder: 3,
+    displayOrder: 4,
   },
   {
     slug: "groq",
@@ -46,7 +46,7 @@ export const SEED_AI_PROVIDERS = [
     isEnabled: false,
     modelTiers: { builder: "llama-3.3-70b-versatile" },
     config: { baseUrl: "https://api.groq.com/openai/v1" },
-    displayOrder: 4,
+    displayOrder: 5,
   },
   {
     slug: "kimi",
@@ -55,7 +55,7 @@ export const SEED_AI_PROVIDERS = [
     isEnabled: false,
     modelTiers: { builder: "moonshot-v1-8k", architect: "moonshot-v1-32k" },
     config: { baseUrl: "https://api.moonshot.cn/v1" },
-    displayOrder: 5,
+    displayOrder: 6,
   },
   {
     slug: "replit",
@@ -65,7 +65,7 @@ export const SEED_AI_PROVIDERS = [
     defaultForRole: "builder" as const,
     modelTiers: { builder: "replit-agent" },
     config: {},
-    displayOrder: 6,
+    displayOrder: 7,
   },
 ];
 
