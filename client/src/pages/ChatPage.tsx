@@ -909,7 +909,9 @@ export default function ChatPage() {
   const [architectThreadId, setArchitectThreadId] = useState<number | null>(null);
   const [builderThreadId, setBuilderThreadId] = useState<number | null>(null);
   const [architectProvider, setArchitectProvider] = useState<string>("");
+  const [architectModel, setArchitectModel] = useState<string>("");
   const [builderProvider, setBuilderProvider] = useState<string>("");
+  const [builderModel, setBuilderModel] = useState<string>("");
   const [proposals, setProposals] = useState<ProposedFile[]>([]);
   const [architectHandoff, setArchitectHandoff] = useState<string | null>(null);
   const [builderHandoff, setBuilderHandoff] = useState<string | null>(null);
@@ -923,7 +925,8 @@ export default function ChatPage() {
   const createThread = useCreateChatThread();
   const updateProvider = useUpdateChatProvider();
 
-  const enabledProviders = providersData?.providers.filter((p) => p.isEnabled) || [];
+  const allProviders = providersData?.providers || [];
+  const enabledProviders = allProviders.filter((p) => p.isEnabled);
   const projects = projectData?.projects || [];
   const selectedProject = projects.find((p) => String(p.id) === selectedProjectId);
 
@@ -1047,6 +1050,56 @@ export default function ChatPage() {
     }
   }, [pendingTaskPrompt, builderThreadId, architectThreadId]);
 
+  // Get models available for a specific role from a provider
+  function getModelsForRole(providerSlug: string, role: "architect" | "builder") {
+    const provider = allProviders.find((p) => p.slug === providerSlug);
+    if (!provider) return [];
+    const available = (provider as any).availableModels?.[role];
+    if (Array.isArray(available)) return available as { id: string; name: string; tier: string }[];
+    // Fallback: use the modelTiers default
+    const defaultModel = (provider.modelTiers as any)?.[role];
+    if (defaultModel) return [{ id: defaultModel, name: defaultModel, tier: "default" }];
+    return [];
+  }
+
+  // Filter providers that have models for a specific role
+  function getProvidersForRole(role: "architect" | "builder") {
+    return enabledProviders.filter((p) => {
+      const available = (p as any).availableModels?.[role];
+      if (Array.isArray(available) && available.length > 0) return true;
+      return !!(p.modelTiers as any)?.[role];
+    });
+  }
+
+  // Handle provider change mid-session — creates a new linked thread
+  async function handleSwapProvider(role: "architect" | "builder", newSlug: string, modelId?: string) {
+    if (!selectedProjectId) return;
+    const pid = parseInt(selectedProjectId, 10);
+    const project = projects.find((p) => p.id === pid);
+    if (!project) return;
+
+    const provider = allProviders.find((p) => p.slug === newSlug);
+    const modelName = modelId || (provider?.modelTiers as any)?.[role] || newSlug;
+
+    const thread = await createThread.mutateAsync({
+      title: `${project.displayName} — ${role === "architect" ? "Architect" : "Builder"} (${provider?.displayName || newSlug})`,
+      agentRole: role,
+      providerSlug: newSlug,
+      modelId: modelId || undefined,
+      projectId: pid,
+    });
+
+    if (role === "architect") {
+      setArchitectThreadId(thread.thread.id);
+      setArchitectProvider(newSlug);
+      if (modelId) setArchitectModel(modelId);
+    } else {
+      setBuilderThreadId(thread.thread.id);
+      setBuilderProvider(newSlug);
+      if (modelId) setBuilderModel(modelId);
+    }
+  }
+
   async function handleStartWorkspace() {
     if (!selectedProjectId) return;
     const pid = parseInt(selectedProjectId, 10);
@@ -1061,6 +1114,7 @@ export default function ChatPage() {
         title: `${project.displayName} — Architect`,
         agentRole: "architect",
         providerSlug: archProv,
+        modelId: architectModel || undefined,
         projectId: pid,
       });
       setArchitectThreadId(arch.thread.id);
@@ -1070,6 +1124,7 @@ export default function ChatPage() {
         title: `${project.displayName} — Builder`,
         agentRole: "builder",
         providerSlug: buildProv,
+        modelId: builderModel || undefined,
         projectId: pid,
       });
       setBuilderThreadId(build.thread.id);
@@ -1080,116 +1135,222 @@ export default function ChatPage() {
     updateProvider.mutate({ slug, data: { isEnabled: enabled } });
   }
 
+  const architectProviders = getProvidersForRole("architect");
+  const builderProviders = getProvidersForRole("builder");
+  const architectModels = architectProvider ? getModelsForRole(architectProvider, "architect") : [];
+  const builderModels = builderProvider ? getModelsForRole(builderProvider, "builder") : [];
+
   return (
     <ProposalContext.Provider value={proposalCtx}>
-      <div className="max-w-[1800px] mx-auto px-4 py-4 h-screen overflow-hidden flex flex-col">
-        {/* Top Bar */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-xl font-bold text-gray-900">Workspace</h1>
+      <div className="max-w-[1800px] mx-auto px-4 py-3 h-screen overflow-hidden flex flex-col">
+        {/* Top Bar — clean, dark, platform-ready */}
+        <div className="bg-gray-900 rounded-xl px-4 py-3 mb-3 shadow-lg">
+          <div className="flex items-center justify-between">
+            {/* Left: Project selector */}
+            <div className="flex items-center gap-4">
+              <h1 className="text-sm font-semibold text-white tracking-wide uppercase">Builds</h1>
+              <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+                <SelectTrigger className="w-48 h-8 bg-gray-800 border-gray-700 text-gray-200 text-xs">
+                  <FolderOpen className="h-3.5 w-3.5 mr-2 text-gray-400" />
+                  <SelectValue placeholder="Select project..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-2.5 h-2.5 rounded-full ring-1 ring-white/20"
+                          style={{ backgroundColor: p.colorPrimary || "#666" }}
+                        />
+                        <span className="font-medium">{p.displayName}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-            <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-              <SelectTrigger className="w-52 h-9">
-                <FolderOpen className="h-4 w-4 mr-2 text-gray-400" />
-                <SelectValue placeholder="Select a project..." />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: p.colorPrimary || "#666" }}
-                      />
-                      {p.displayName}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
+            {/* Center: AI Role Selectors */}
             {selectedProjectId && (
-              <>
-                <div className="flex items-center gap-1">
-                  <Cpu className="h-3.5 w-3.5 text-purple-500" />
-                  <Select value={architectProvider} onValueChange={setArchitectProvider}>
-                    <SelectTrigger className="w-36 h-8 text-xs">
-                      <SelectValue placeholder="Architect AI" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {enabledProviders.map((p) => (
-                        <SelectItem key={p.slug} value={p.slug}>{p.displayName}</SelectItem>
-                      ))}
-                      {enabledProviders.length === 0 && (
-                        <SelectItem value="__none" disabled>Enable a provider</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Wrench className="h-3.5 w-3.5 text-blue-500" />
-                  <Select value={builderProvider} onValueChange={setBuilderProvider}>
-                    <SelectTrigger className="w-36 h-8 text-xs">
-                      <SelectValue placeholder="Builder AI" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {enabledProviders.map((p) => (
-                        <SelectItem key={p.slug} value={p.slug}>{p.displayName}</SelectItem>
-                      ))}
-                      {enabledProviders.length === 0 && (
-                        <SelectItem value="__none" disabled>Enable a provider</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            )}
-
-            {selectedProjectId && (!architectThreadId || !builderThreadId) && (
-              <Button
-                onClick={handleStartWorkspace}
-                size="sm"
-                disabled={createThread.isPending || enabledProviders.length === 0}
-              >
-                <GitBranch className="h-3.5 w-3.5 mr-1.5" />
-                {createThread.isPending ? "Creating..." : "Start Workspace"}
-              </Button>
-            )}
-          </div>
-
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Settings className="h-4 w-4 mr-2" />
-                Providers
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>AI Providers</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 mt-2">
-                {providersData?.providers.map((provider) => (
-                  <div key={provider.slug} className="flex items-center justify-between py-2">
-                    <div>
-                      <Label className="text-sm font-medium">{provider.displayName}</Label>
-                      <p className="text-xs text-gray-400">
-                        {provider.providerType}
-                        {provider.defaultForRole && <span> &middot; default for {provider.defaultForRole}</span>}
-                      </p>
-                    </div>
-                    <Switch
-                      checked={provider.isEnabled}
-                      onCheckedChange={(checked) => handleToggleProvider(provider.slug, checked)}
-                    />
+              <div className="flex items-center gap-6">
+                {/* Architect selector */}
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 text-purple-400">
+                    <Cpu className="h-3.5 w-3.5" />
+                    <span className="text-[10px] font-semibold uppercase tracking-wider">Architect</span>
                   </div>
-                ))}
-                {!providersData?.providers.length && (
-                  <p className="text-sm text-gray-400 text-center py-4">No providers configured.</p>
-                )}
+                  <Select
+                    value={architectProvider}
+                    onValueChange={(slug) => {
+                      setArchitectProvider(slug);
+                      setArchitectModel("");
+                      if (architectThreadId) handleSwapProvider("architect", slug);
+                    }}
+                  >
+                    <SelectTrigger className="w-36 h-7 bg-gray-800 border-gray-700 text-gray-200 text-[11px]">
+                      <SelectValue placeholder="Provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {architectProviders.map((p) => (
+                        <SelectItem key={p.slug} value={p.slug}>
+                          {p.displayName}
+                        </SelectItem>
+                      ))}
+                      {architectProviders.length === 0 && (
+                        <SelectItem value="__none" disabled>Enable a provider</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {architectModels.length > 0 && (
+                    <Select
+                      value={architectModel}
+                      onValueChange={(modelId) => {
+                        setArchitectModel(modelId);
+                        if (architectThreadId && architectProvider) {
+                          handleSwapProvider("architect", architectProvider, modelId);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-44 h-7 bg-gray-800 border-gray-700 text-gray-300 text-[11px]">
+                        <SelectValue placeholder="Model version" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {architectModels.map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            <div className="flex items-center gap-2">
+                              <span>{m.name}</span>
+                              <span className={`text-[9px] px-1.5 py-0 rounded-full ${
+                                m.tier === "flagship" ? "bg-purple-100 text-purple-700" :
+                                m.tier === "reasoning" ? "bg-amber-100 text-amber-700" :
+                                m.tier === "balanced" ? "bg-blue-100 text-blue-700" :
+                                m.tier === "fast" ? "bg-green-100 text-green-700" :
+                                "bg-gray-100 text-gray-600"
+                              }`}>
+                                {m.tier}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                <div className="w-px h-6 bg-gray-700" />
+
+                {/* Builder selector */}
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 text-blue-400">
+                    <Wrench className="h-3.5 w-3.5" />
+                    <span className="text-[10px] font-semibold uppercase tracking-wider">Builder</span>
+                  </div>
+                  <Select
+                    value={builderProvider}
+                    onValueChange={(slug) => {
+                      setBuilderProvider(slug);
+                      setBuilderModel("");
+                      if (builderThreadId) handleSwapProvider("builder", slug);
+                    }}
+                  >
+                    <SelectTrigger className="w-36 h-7 bg-gray-800 border-gray-700 text-gray-200 text-[11px]">
+                      <SelectValue placeholder="Provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {builderProviders.map((p) => (
+                        <SelectItem key={p.slug} value={p.slug}>
+                          {p.displayName}
+                        </SelectItem>
+                      ))}
+                      {builderProviders.length === 0 && (
+                        <SelectItem value="__none" disabled>Enable a provider</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {builderModels.length > 0 && (
+                    <Select
+                      value={builderModel}
+                      onValueChange={(modelId) => {
+                        setBuilderModel(modelId);
+                        if (builderThreadId && builderProvider) {
+                          handleSwapProvider("builder", builderProvider, modelId);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-44 h-7 bg-gray-800 border-gray-700 text-gray-300 text-[11px]">
+                        <SelectValue placeholder="Model version" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {builderModels.map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            <div className="flex items-center gap-2">
+                              <span>{m.name}</span>
+                              <span className={`text-[9px] px-1.5 py-0 rounded-full ${
+                                m.tier === "flagship" ? "bg-blue-100 text-blue-700" :
+                                m.tier === "coding" ? "bg-purple-100 text-purple-700" :
+                                m.tier === "fast" ? "bg-green-100 text-green-700" :
+                                m.tier === "reasoning" ? "bg-amber-100 text-amber-700" :
+                                "bg-gray-100 text-gray-600"
+                              }`}>
+                                {m.tier}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
               </div>
-            </DialogContent>
-          </Dialog>
+            )}
+
+            {/* Right: Actions */}
+            <div className="flex items-center gap-2">
+              {selectedProjectId && (!architectThreadId || !builderThreadId) && (
+                <Button
+                  onClick={handleStartWorkspace}
+                  size="sm"
+                  className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={createThread.isPending || enabledProviders.length === 0}
+                >
+                  <GitBranch className="h-3.5 w-3.5 mr-1.5" />
+                  {createThread.isPending ? "Creating..." : "Launch"}
+                </Button>
+              )}
+
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 text-gray-400 hover:text-white hover:bg-gray-800">
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>AI Providers</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 mt-2">
+                    {allProviders.map((provider) => (
+                      <div key={provider.slug} className="flex items-center justify-between py-2">
+                        <div>
+                          <Label className="text-sm font-medium">{provider.displayName}</Label>
+                          <p className="text-xs text-gray-400">
+                            {provider.providerType}
+                            {provider.defaultForRole && <span> &middot; default {provider.defaultForRole}</span>}
+                          </p>
+                        </div>
+                        <Switch
+                          checked={provider.isEnabled}
+                          onCheckedChange={(checked) => handleToggleProvider(provider.slug, checked)}
+                        />
+                      </div>
+                    ))}
+                    {allProviders.length === 0 && (
+                      <p className="text-sm text-gray-400 text-center py-4">No providers configured.</p>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
         </div>
 
         {/* Three-Column Layout */}
