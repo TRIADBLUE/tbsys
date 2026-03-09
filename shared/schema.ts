@@ -461,6 +461,7 @@ export const aiProviderTypeEnum = pgEnum("ai_provider_type", [
   "kimi",
   "groq",
   "replit",
+  "claude-code",
 ]);
 
 export const chatThreads = pgTable("chat_threads", {

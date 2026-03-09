@@ -47,6 +47,9 @@ registerRoutes(app, db);
 
 async function seedIfNeeded() {
   try {
+    // Ensure new provider types exist in the enum
+    await pool.query(`ALTER TYPE ai_provider_type ADD VALUE IF NOT EXISTS 'claude-code'`).catch(() => {});
+
     for (const project of SEED_PROJECTS) {
       const existing = await db
         .select({ id: projects.id })

@@ -25,13 +25,28 @@ export const SEED_AI_PROVIDERS = [
     },
   },
   {
+    slug: "claude-code",
+    displayName: "Claude Code",
+    providerType: "claude-code" as const,
+    isEnabled: false,
+    modelTiers: { builder: "claude-code-opus" },
+    config: {},
+    displayOrder: 2,
+    availableModels: {
+      builder: [
+        { id: "claude-code-opus", name: "Claude Code (Opus 4.6)", tier: "flagship" },
+        { id: "claude-code-sonnet", name: "Claude Code (Sonnet 4.6)", tier: "fast" },
+      ],
+    },
+  },
+  {
     slug: "kimi",
     displayName: "Kimi (Moonshot)",
     providerType: "kimi" as const,
     isEnabled: false,
     modelTiers: { builder: "kimi-k2.5", architect: "kimi-k2.5" },
     config: { baseUrl: "https://api.moonshot.cn/v1" },
-    displayOrder: 2,
+    displayOrder: 3,
     availableModels: {
       architect: [
         { id: "kimi-k2.5", name: "Kimi K2.5", tier: "flagship" },
@@ -51,7 +66,7 @@ export const SEED_AI_PROVIDERS = [
     isEnabled: false,
     modelTiers: { builder: "gemini-3-flash", architect: "gemini-3.1-pro" },
     config: {},
-    displayOrder: 3,
+    displayOrder: 4,
     availableModels: {
       architect: [
         { id: "gemini-3.1-pro", name: "Gemini 3.1 Pro", tier: "flagship" },
@@ -71,7 +86,7 @@ export const SEED_AI_PROVIDERS = [
     isEnabled: false,
     modelTiers: { builder: "deepseek-chat", architect: "deepseek-reasoner" },
     config: { baseUrl: "https://api.deepseek.com/v1" },
-    displayOrder: 4,
+    displayOrder: 5,
     availableModels: {
       architect: [
         { id: "deepseek-reasoner", name: "DeepSeek R1", tier: "reasoning" },
@@ -90,7 +105,7 @@ export const SEED_AI_PROVIDERS = [
     isEnabled: false,
     modelTiers: { builder: "llama-3.3-70b-versatile" },
     config: { baseUrl: "https://api.groq.com/openai/v1" },
-    displayOrder: 5,
+    displayOrder: 6,
     availableModels: {
       builder: [
         { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", tier: "flagship" },
@@ -106,7 +121,7 @@ export const SEED_AI_PROVIDERS = [
     isEnabled: false,
     modelTiers: { builder: "gpt-4o", architect: "gpt-4o" },
     config: {},
-    displayOrder: 6,
+    displayOrder: 7,
     availableModels: {
       architect: [
         { id: "gpt-4o", name: "GPT-4o", tier: "flagship" },
@@ -127,7 +142,7 @@ export const SEED_AI_PROVIDERS = [
     defaultForRole: "builder" as const,
     modelTiers: { builder: "replit-agent" },
     config: {},
-    displayOrder: 7,
+    displayOrder: 8,
     availableModels: {
       builder: [
         { id: "replit-agent", name: "Replit Agent (Claude Sonnet)", tier: "flagship" },
