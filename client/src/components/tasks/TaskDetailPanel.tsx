@@ -167,7 +167,7 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
               params.set("role", "architect");
               params.set("taskId", String(task.id));
               params.set("prompt", `Task #${task.id}: ${task.title}${task.description ? "\n\n" + task.description : ""}`);
-              setLocation(`/chat?${params.toString()}`);
+              setLocation(`/builds?${params.toString()}`);
               onClose();
             }}
           >
@@ -184,7 +184,7 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
               params.set("role", "builder");
               params.set("taskId", String(task.id));
               params.set("prompt", `Task #${task.id}: ${task.title}${task.description ? "\n\n" + task.description : ""}`);
-              setLocation(`/chat?${params.toString()}`);
+              setLocation(`/builds?${params.toString()}`);
               onClose();
             }}
           >

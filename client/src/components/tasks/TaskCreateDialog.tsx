@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useCreateTask } from "@/hooks/use-tasks";
 import { useProjects } from "@/hooks/use-projects";
+import { useUploadAsset } from "@/hooks/use-assets";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Globe, X } from "lucide-react";
+import { Globe, X, Camera, Paperclip, FileText } from "lucide-react";
 
 interface TaskCreateDialogProps {
   open: boolean;
@@ -52,6 +53,10 @@ export function TaskCreateDialog({
     defaultProjectId ? String(defaultProjectId) : "none",
   );
   const [taggedProjects, setTaggedProjects] = useState<number[]>([]);
+  const [attachments, setAttachments] = useState<{ file: File; preview?: string }[]>([]);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadAsset = useUploadAsset();
 
   // Reset form when dialog opens with new defaults
   useEffect(() => {
@@ -63,8 +68,54 @@ export function TaskCreateDialog({
       setStatus("todo");
       setPriority("medium");
       setDueDate("");
+      // Clean up old previews
+      attachments.forEach((a) => a.preview && URL.revokeObjectURL(a.preview));
+      setAttachments([]);
     }
   }, [open, defaultTitle, defaultDescription, defaultProjectId]);
+
+  const addFiles = useCallback((files: FileList | File[]) => {
+    const newAttachments = Array.from(files).map((file) => ({
+      file,
+      preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
+    }));
+    setAttachments((prev) => [...prev, ...newAttachments]);
+  }, []);
+
+  function removeAttachment(index: number) {
+    setAttachments((prev) => {
+      const removed = prev[index];
+      if (removed?.preview) URL.revokeObjectURL(removed.preview);
+      return prev.filter((_, i) => i !== index);
+    });
+  }
+
+  async function captureScreenshot() {
+    try {
+      setIsCapturing(true);
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: "window" } as any,
+      });
+      const track = stream.getVideoTracks()[0];
+      const canvas = document.createElement("canvas");
+      const video = document.createElement("video");
+      video.srcObject = stream;
+      await video.play();
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext("2d")!.drawImage(video, 0, 0);
+      track.stop();
+      const blob = await new Promise<Blob>((resolve) =>
+        canvas.toBlob((b) => resolve(b!), "image/png"),
+      );
+      const file = new File([blob], `screenshot-${Date.now()}.png`, { type: "image/png" });
+      addFiles([file]);
+    } catch {
+      // User cancelled or browser doesn't support
+    } finally {
+      setIsCapturing(false);
+    }
+  }
 
   function addTaggedProject(id: string) {
     const numId = parseInt(id, 10);
@@ -101,6 +152,27 @@ export function TaskCreateDialog({
       fullDescription = `Source: ${sourceLabel}`;
     }
 
+    // Upload attachments first
+    const uploadedAssetIds: number[] = [];
+    for (const attachment of attachments) {
+      try {
+        const result = await uploadAsset.mutateAsync({
+          file: attachment.file,
+          projectId: primaryProjectId,
+          category: attachment.file.type.startsWith("image/") ? "screenshot" : "document",
+        });
+        uploadedAssetIds.push(result.asset.id);
+      } catch {
+        // Continue even if one upload fails
+      }
+    }
+
+    // Append attachment references to description
+    if (uploadedAssetIds.length > 0) {
+      const attachmentNote = `\n\nAttachments: ${uploadedAssetIds.map((id) => `[Asset #${id}]`).join(", ")}`;
+      fullDescription = (fullDescription || "") + attachmentNote;
+    }
+
     await createTask.mutateAsync({
       title: title.trim(),
       description: fullDescription || undefined,
@@ -117,6 +189,8 @@ export function TaskCreateDialog({
     setPriority("medium");
     setDueDate("");
     setTaggedProjects([]);
+    attachments.forEach((a) => a.preview && URL.revokeObjectURL(a.preview));
+    setAttachments([]);
     onOpenChange(false);
   }
 
@@ -135,7 +209,28 @@ export function TaskCreateDialog({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-4"
+          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files);
+          }}
+          onPaste={(e) => {
+            const items = e.clipboardData?.items;
+            if (!items) return;
+            const files: File[] = [];
+            for (let i = 0; i < items.length; i++) {
+              if (items[i].kind === "file") {
+                const file = items[i].getAsFile();
+                if (file) files.push(file);
+              }
+            }
+            if (files.length > 0) addFiles(files);
+          }}
+        >
           <div>
             <Label htmlFor="title">Title</Label>
             <Input
@@ -284,6 +379,83 @@ export function TaskCreateDialog({
             )}
           </div>
 
+          {/* Attachments */}
+          <div>
+            <Label>Attachments</Label>
+            <div className="flex gap-2 mt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Paperclip className="h-3.5 w-3.5 mr-1.5" />
+                Add File
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                onClick={captureScreenshot}
+                disabled={isCapturing}
+              >
+                <Camera className="h-3.5 w-3.5 mr-1.5" />
+                {isCapturing ? "Capturing..." : "Screenshot"}
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,.pdf,.doc,.docx,.txt,.csv,.json,.md"
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files?.length) {
+                    addFiles(e.target.files);
+                    e.target.value = "";
+                  }
+                }}
+              />
+            </div>
+
+            {attachments.length > 0 && (
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                {attachments.map((a, i) => (
+                  <div
+                    key={i}
+                    className="relative group border rounded-lg overflow-hidden bg-gray-50"
+                  >
+                    {a.preview ? (
+                      <img
+                        src={a.preview}
+                        alt={a.file.name}
+                        className="w-full h-20 object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-20 flex flex-col items-center justify-center p-2">
+                        <FileText className="h-6 w-6 text-gray-400 mb-1" />
+                        <span className="text-[10px] text-gray-500 truncate w-full text-center">
+                          {a.file.name}
+                        </span>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(i)}
+                      className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[9px] px-1.5 py-0.5 truncate">
+                      {(a.file.size / 1024).toFixed(0)}KB
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="flex justify-end gap-2">
             <Button
               type="button"
@@ -292,8 +464,8 @@ export function TaskCreateDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={createTask.isPending}>
-              {createTask.isPending ? "Creating..." : "Create Task"}
+            <Button type="submit" disabled={createTask.isPending || uploadAsset.isPending}>
+              {uploadAsset.isPending ? "Uploading..." : createTask.isPending ? "Creating..." : "Create Task"}
             </Button>
           </div>
         </form>

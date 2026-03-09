@@ -133,12 +133,12 @@ export default function DashboardPage() {
                 onClick={() => setChatCreateOpen(true)}
               >
                 <Plus className="h-4 w-4 mr-2" />
-                <span className="text-xs">New Chat</span>
+                <span className="text-xs">New Build</span>
               </Button>
-              <Link href="/chat">
+              <Link href="/builds">
                 <Button variant="ghost" className="w-full justify-start h-auto py-3">
                   <MessageSquare className="h-4 w-4 mr-2" />
-                  <span className="text-xs">Chats</span>
+                  <span className="text-xs">Builds</span>
                 </Button>
               </Link>
             </div>

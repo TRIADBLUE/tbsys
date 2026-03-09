@@ -66,8 +66,11 @@ export function createAssetRoutes(
       const projectId = req.headers["x-project-id"]
         ? parseInt(req.headers["x-project-id"] as string, 10)
         : null;
-      const category =
-        (req.headers["x-category"] as string) || "document";
+      // Auto-detect category from mime type if not specified
+      const headerCategory = req.headers["x-category"] as string | undefined;
+      const category = headerCategory || (
+        mimeType.startsWith("image/") ? "screenshot" : "document"
+      );
 
       // Collect body chunks
       const chunks: Buffer[] = [];
@@ -109,6 +112,34 @@ export function createAssetRoutes(
           next(err);
         }
       });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // GET /api/assets/file/:id — serve the actual uploaded file
+  router.get("/file/:id", async (req, res, next) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const [asset] = await db
+        .select()
+        .from(assets)
+        .where(eq(assets.id, id))
+        .limit(1);
+
+      if (!asset) {
+        return res.status(404).json({ error: "Not Found" });
+      }
+
+      if (!fs.existsSync(asset.storagePath)) {
+        return res.status(404).json({ error: "File not found on disk" });
+      }
+
+      res.setHeader("Content-Type", asset.mimeType);
+      res.setHeader("Content-Disposition", `inline; filename="${asset.filename}"`);
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      const stream = fs.createReadStream(asset.storagePath);
+      stream.pipe(res);
     } catch (err) {
       next(err);
     }

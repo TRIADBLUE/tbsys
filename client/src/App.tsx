@@ -100,7 +100,7 @@ function AppRouter() {
       <Route path="/tasks">
         <ProtectedRoute component={TasksPage} />
       </Route>
-      <Route path="/chat">
+      <Route path="/builds">
         <ProtectedRoute component={ChatPage} />
       </Route>
       <Route path="/analytics">

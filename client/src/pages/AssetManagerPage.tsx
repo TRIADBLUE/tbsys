@@ -57,8 +57,8 @@ export default function AssetManagerPage() {
     for (const file of Array.from(files)) {
       uploadAsset.mutate({
         file,
-        projectId: projectFilter ? parseInt(projectFilter, 10) : undefined,
-        category: categoryFilter || undefined,
+        projectId: projectFilter !== "all" ? parseInt(projectFilter, 10) : undefined,
+        category: categoryFilter !== "all" ? categoryFilter : undefined,
       });
     }
 
@@ -121,7 +121,10 @@ export default function AssetManagerPage() {
           e.preventDefault();
           const files = e.dataTransfer.files;
           for (const file of Array.from(files)) {
-            uploadAsset.mutate({ file });
+            uploadAsset.mutate({
+              file,
+              projectId: projectFilter !== "all" ? parseInt(projectFilter, 10) : undefined,
+            });
           }
         }}
       >

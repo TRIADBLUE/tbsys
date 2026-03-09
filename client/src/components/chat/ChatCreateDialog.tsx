@@ -50,7 +50,7 @@ export function ChatCreateDialog({ open, onOpenChange }: ChatCreateDialogProps) 
     setTitle("");
     setProvider("none");
     onOpenChange(false);
-    navigate(`/chat`);
+    navigate(`/builds`);
   }
 
   return (

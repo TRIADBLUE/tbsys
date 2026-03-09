@@ -1033,7 +1033,7 @@ export default function ChatPage() {
 
     // Clear URL params after reading
     if (params.toString()) {
-      setLocation("/chat", { replace: true });
+      setLocation("/builds", { replace: true });
     }
   }, [searchString, projects.length]);
 

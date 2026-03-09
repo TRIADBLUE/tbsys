@@ -27,7 +27,7 @@ export function useTaskContextMenu() {
 // Map ConsoleBlue routes to project slugs for auto-detection
 const ROUTE_TO_PROJECT: Record<string, string> = {
   "/projects": "",
-  "/chat": "",
+  "/builds": "",
   "/tasks": "",
 };
 

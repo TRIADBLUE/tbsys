@@ -32,6 +32,8 @@ export function ProjectForm({ project, onSuccess }: ProjectFormProps) {
     githubRepo: project?.githubRepo || "",
     iconUrl: project?.iconUrl || "",
     iconEmoji: project?.iconEmoji || "",
+    colorPrimary: project?.colorPrimary || "#0000FF",
+    colorAccent: project?.colorAccent || "#FF44CC",
     status: (project?.status || "active") as ProjectStatus,
     subdomainUrl: project?.subdomainUrl || "",
     productionUrl: project?.productionUrl || "",
@@ -62,6 +64,8 @@ export function ProjectForm({ project, onSuccess }: ProjectFormProps) {
       githubRepo: form.githubRepo || undefined,
       iconUrl: form.iconUrl || undefined,
       iconEmoji: form.iconEmoji || undefined,
+      colorPrimary: form.colorPrimary || undefined,
+      colorAccent: form.colorAccent || undefined,
       status: form.status,
       subdomainUrl: form.subdomainUrl || undefined,
       productionUrl: form.productionUrl || undefined,
@@ -173,6 +177,46 @@ export function ProjectForm({ project, onSuccess }: ProjectFormProps) {
             <p className="text-xs text-muted-foreground">
               Image URL for this project's icon. Used on cards, detail pages, and exports.
             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Brand Colors */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label>Primary Color</Label>
+          <p className="text-[10px] text-muted-foreground">Buttons, links, page titles, active navigation</p>
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={form.colorPrimary}
+              onChange={(e) => updateField("colorPrimary", e.target.value)}
+              className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer p-0.5"
+            />
+            <Input
+              value={form.colorPrimary}
+              onChange={(e) => updateField("colorPrimary", e.target.value)}
+              className="font-mono text-sm flex-1"
+              maxLength={7}
+            />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <Label>Accent Color</Label>
+          <p className="text-[10px] text-muted-foreground">Secondary actions, tags, badges, decorative borders</p>
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={form.colorAccent}
+              onChange={(e) => updateField("colorAccent", e.target.value)}
+              className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer p-0.5"
+            />
+            <Input
+              value={form.colorAccent}
+              onChange={(e) => updateField("colorAccent", e.target.value)}
+              className="font-mono text-sm flex-1"
+              maxLength={7}
+            />
           </div>
         </div>
       </div>
