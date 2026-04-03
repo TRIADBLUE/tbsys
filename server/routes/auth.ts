@@ -7,35 +7,27 @@ import {
   adminSessions,
   passwordResetTokens,
 } from "../../shared/schema";
-import { constantTimeCompare } from "../middleware/auth";
+import { createAuthMiddleware } from "../middleware/auth";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 export function createAuthRoutes(db: NodePgDatabase) {
   const router = Router();
-
-  console.log(`[auth] Routes registered. RESEND_CONSOLEBLUE_API_KEY: ${process.env.RESEND_CONSOLEBLUE_API_KEY ? "SET" : "NOT SET"}`);
-
-  // Startup: list admin users so we know what's in the DB
-  (async () => {
-    try {
-      const result = await db.select({ id: adminUsers.id, email: adminUsers.email, isActive: adminUsers.isActive }).from(adminUsers);
-      console.log(`[auth] Admin users in DB:`, result.map(u => `${u.id}:${u.email}(active=${u.isActive})`).join(", ") || "NONE");
-    } catch (e) {
-      console.error(`[auth] Failed to list admin users:`, e);
-    }
-  })();
+  const authRequired = createAuthMiddleware(db);
 
   // Helper: send magic login link via Resend
   async function sendMagicLink(email: string, loginUrl: string) {
     const resendKey = process.env.RESEND_CONSOLEBLUE_API_KEY || process.env.RESEND_API_KEY;
     if (!resendKey) {
-      console.log(`[auth] No RESEND_CONSOLEBLUE_API_KEY — login link: ${loginUrl}`);
+      // No email service — log link for dev only
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`[auth] Dev mode — login link generated`);
+      }
       return;
     }
 
     const resend = new Resend(resendKey);
     await resend.emails.send({
-      from: process.env.EMAIL_FROM || "Console.Blue <dev@console.blue>",
+      from: process.env.EMAIL_FROM || "Console.Blue <noreply@console.blue>",
       to: email,
       subject: "Sign in to Console.Blue",
       html: `
@@ -59,18 +51,15 @@ export function createAuthRoutes(db: NodePgDatabase) {
           </p>
           <hr style="border: none; border-top: 1px solid #eee; margin: 32px 0;" />
           <p style="color: #bbb; font-size: 12px; text-align: center;">
-            Console.Blue — Project Management Hub
+            Console.Blue — Internal Operations
           </p>
         </div>
       `,
     });
-    console.log(`[auth] Magic link email sent to ${email}`);
   }
 
   // POST /api/auth/send-magic-link
-  // User enters email, we send them a login link
   router.post("/send-magic-link", async (req, res) => {
-    console.log(`[auth] /send-magic-link hit, body:`, req.body);
     try {
       const { email } = req.body;
       const successMsg = "If an account exists, we sent you a sign-in link.";
@@ -87,25 +76,15 @@ export function createAuthRoutes(db: NodePgDatabase) {
           .where(eq(adminUsers.email, email.toLowerCase()))
           .limit(1);
         user = results[0];
-        console.log(`[auth] DB query returned ${results.length} results for ${email.toLowerCase()}`);
       } catch (dbErr) {
-        console.error(`[auth] DB query FAILED:`, dbErr);
         return res.json({ success: true, message: successMsg });
       }
 
-      if (!user) {
-        console.log(`[auth] No user found for email: ${email.toLowerCase()}`);
+      if (!user || !user.isActive) {
         return res.json({ success: true, message: successMsg });
       }
 
-      console.log(`[auth] User found: id=${user.id}, isActive=${user.isActive}`);
-
-      if (!user.isActive) {
-        console.log(`[auth] User is inactive, skipping`);
-        return res.json({ success: true, message: successMsg });
-      }
-
-      // Generate token (reuse passwordResetTokens table)
+      // Generate token
       const token = randomBytes(32).toString("hex");
       await db.insert(passwordResetTokens).values({
         userId: user.id,
@@ -119,17 +98,14 @@ export function createAuthRoutes(db: NodePgDatabase) {
         (req.headers.origin || `${req.protocol}://${req.get("host")}`);
       const loginUrl = `${baseUrl}/api/auth/verify-magic-link?token=${token}`;
 
-      console.log(`[auth] Sending magic link to ${email}, URL: ${loginUrl}`);
       try {
         await sendMagicLink(email, loginUrl);
-        console.log(`[auth] Magic link sent successfully to ${email}`);
       } catch (emailErr) {
-        console.error("[auth] Failed to send magic link:", emailErr);
+        // Silently fail — don't reveal whether email exists
       }
 
       res.json({ success: true, message: successMsg });
     } catch (err) {
-      console.error("Magic link error:", err);
       res.status(500).json({ error: "An error occurred" });
     }
   });
@@ -266,6 +242,51 @@ export function createAuthRoutes(db: NodePgDatabase) {
     }
 
     res.json({ user });
+  });
+
+  // POST /api/auth/change-password (requires active session)
+  router.post("/change-password", authRequired, async (req, res) => {
+    try {
+      const { currentPassword, newPassword } = req.body;
+
+      if (!newPassword || newPassword.length < 8) {
+        return res.status(400).json({ error: "Password must be at least 8 characters" });
+      }
+
+      const [user] = await db
+        .select()
+        .from(adminUsers)
+        .where(eq(adminUsers.id, req.session.userId!))
+        .limit(1);
+
+      if (!user) {
+        return res.status(401).json({ error: "User not found" });
+      }
+
+      const bcrypt = await import("bcrypt");
+
+      // If user has an existing password, verify current password
+      if (user.passwordHash && user.passwordHash !== "") {
+        if (!currentPassword) {
+          return res.status(400).json({ error: "Current password is required" });
+        }
+        const valid = await bcrypt.default.compare(currentPassword, user.passwordHash);
+        if (!valid) {
+          return res.status(401).json({ error: "Current password is incorrect" });
+        }
+      }
+
+      // Hash and save new password
+      const newHash = await bcrypt.default.hash(newPassword, 12);
+      await db
+        .update(adminUsers)
+        .set({ passwordHash: newHash })
+        .where(eq(adminUsers.id, user.id));
+
+      res.json({ success: true, message: "Password updated" });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to change password" });
+    }
   });
 
   // POST /api/auth/seed-admin (initial setup only)

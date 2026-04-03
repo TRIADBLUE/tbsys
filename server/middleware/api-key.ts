@@ -9,8 +9,10 @@ export function requireApiKey(
   const expectedKey = process.env.CONSOLE_API_KEY;
 
   if (!expectedKey) {
-    console.warn("[api-key] CONSOLE_API_KEY not set — API key auth disabled");
-    return next();
+    return res.status(500).json({
+      error: "Server configuration error",
+      message: "API key authentication is not configured",
+    });
   }
 
   if (!apiKey) {

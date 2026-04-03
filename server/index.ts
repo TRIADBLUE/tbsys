@@ -1,6 +1,7 @@
 import express from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import { randomBytes } from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
 import { eq } from "drizzle-orm";
@@ -35,7 +36,7 @@ app.use(
       tableName: "session",
       createTableIfMissing: true,
     }),
-    secret: process.env.SESSION_SECRET || "consoleblue-dev-secret-change-me",
+    secret: process.env.SESSION_SECRET || randomBytes(32).toString("hex"),
     resave: false,
     saveUninitialized: false,
     cookie: {

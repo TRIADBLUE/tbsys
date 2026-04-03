@@ -7,6 +7,7 @@ import {
   upsertOgaAssetsSchema,
 } from "../../shared/validators";
 import { validateBody } from "../middleware/validation";
+import { createAuthMiddleware } from "../middleware/auth";
 import type { AuditService } from "../services/audit.service";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import crypto from "crypto";
@@ -200,7 +201,9 @@ export function createOgaRoutes(
     res.send(script);
   });
 
-  // ── Admin Endpoints ──────────────────────────────────
+  // ── Admin Endpoints (require session auth) ──────────
+  const authRequired = createAuthMiddleware(db);
+  router.use("/sites", authRequired);
 
   // GET /api/oga/sites
   router.get("/sites", async (req, res, next) => {

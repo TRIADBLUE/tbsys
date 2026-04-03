@@ -148,8 +148,24 @@ function SecuritySection() {
       return;
     }
 
-    // Password change will be implemented with a dedicated endpoint
-    setMessage("Password change coming in next update");
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Failed to change password");
+        return;
+      }
+      setMessage("Password updated successfully");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch {
+      setError("Failed to change password");
+    }
   }
 
   return (

@@ -3,6 +3,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { CacheService } from "./services/cache.service";
 import { AuditService } from "./services/audit.service";
 import { SyncService } from "./services/sync.service";
+import { createAuthMiddleware } from "./middleware/auth";
 import { createProjectRoutes } from "./routes/projects";
 import { createProjectSettingsRoutes } from "./routes/project-settings";
 import { createProjectColorRoutes } from "./routes/project-colors";
@@ -32,96 +33,83 @@ export function registerRoutes(app: Express, db: NodePgDatabase) {
   const cacheService = new CacheService(db);
   const auditService = new AuditService(db);
   const syncService = new SyncService(db, cacheService, auditService);
+  const authRequired = createAuthMiddleware(db);
 
   // ── API Routes ─────────────────────────────────────
   // IMPORTANT: Register all API routes BEFORE the SPA catch-all
 
-  // Auth — no auth required on these routes (they handle their own)
+  // ── Public routes (no auth) ──────────────────────
   app.use("/api/auth", createAuthRoutes(db));
-
-  // Health check — no auth
   app.use("/api/health", createHealthRoutes(db, cacheService));
 
-  // Project CRUD
-  app.use("/api/projects", createProjectRoutes(db, auditService));
+  // OGA public endpoints are handled inside the OGA router
+  // (config and embed.js are key-authenticated, admin endpoints need session)
+  app.use("/api/oga", createOgaRoutes(db, auditService));
 
-  // Per-project settings (nested under projects)
+  // ── Protected routes (require session or API key) ──
+  app.use("/api/projects", authRequired, createProjectRoutes(db, auditService));
+
   app.use(
     "/api/projects/:idOrSlug/settings",
+    authRequired,
     createProjectSettingsRoutes(db, auditService),
   );
 
-  // Per-project colors (nested under projects)
   app.use(
     "/api/projects/:idOrSlug/colors",
+    authRequired,
     createProjectColorRoutes(db, auditService),
   );
 
-  // GitHub proxy with caching
-  app.use("/api/github", createGithubRoutes(cacheService, auditService));
+  app.use("/api/github", authRequired, createGithubRoutes(cacheService, auditService));
 
-  // User preferences
-  app.use("/api/user/preferences", createUserPreferencesRoutes(db));
+  app.use("/api/user/preferences", authRequired, createUserPreferencesRoutes(db));
 
-  // Audit log
-  app.use("/api/audit", createAuditRoutes(auditService));
+  app.use("/api/audit", authRequired, createAuditRoutes(auditService));
 
-  // Notifications (requires auth)
-  app.use("/api/notifications", createNotificationRoutes(db));
+  app.use("/api/notifications", authRequired, createNotificationRoutes(db));
 
-  // Shared docs (global docs included in every CLAUDE.md push)
-  app.use("/api/docs/shared", createSharedDocRoutes(db, auditService));
+  app.use("/api/docs/shared", authRequired, createSharedDocRoutes(db, auditService));
 
-  // Per-project docs (nested under projects)
   app.use(
     "/api/projects/:idOrSlug/docs",
+    authRequired,
     createProjectDocRoutes(db, auditService),
   );
 
-  // Doc push (preview, push to GitHub, history)
   app.use(
     "/api/projects/:idOrSlug/docs/push",
+    authRequired,
     createDocPushRoutes(db, auditService),
   );
 
-  // Doc generator templates (global)
-  app.use("/api/doc-generator", createDocGeneratorRoutes(db, auditService));
+  app.use("/api/doc-generator", authRequired, createDocGeneratorRoutes(db, auditService));
 
-  // Doc auto-generation (per-project)
   app.use(
     "/api/projects/:idOrSlug/generate-docs",
+    authRequired,
     createDocGeneratorRoutes(db, auditService),
   );
 
-  // Tasks
-  app.use("/api/tasks", createTaskRoutes(db, auditService));
+  app.use("/api/tasks", authRequired, createTaskRoutes(db, auditService));
 
-  // Site Planner (nested under projects)
   app.use(
     "/api/projects/:idOrSlug/site-plan",
+    authRequired,
     createSitePlannerRoutes(db, auditService),
   );
 
-  // Chat system
-  app.use("/api/chat", createChatRoutes(db, auditService));
+  app.use("/api/chat", authRequired, createChatRoutes(db, auditService));
 
-  // Dashboard
-  app.use("/api/dashboard", createDashboardRoutes(db, auditService));
+  app.use("/api/dashboard", authRequired, createDashboardRoutes(db, auditService));
 
-  // Analytics
-  app.use("/api/analytics", createAnalyticsRoutes(db, auditService));
+  app.use("/api/analytics", authRequired, createAnalyticsRoutes(db, auditService));
 
-  // Assets
-  app.use("/api/assets", createAssetRoutes(db, auditService));
+  app.use("/api/assets", authRequired, createAssetRoutes(db, auditService));
 
-  // Link Monitor
-  app.use("/api/link-monitor", createLinkMonitorRoutes(db, auditService));
+  app.use("/api/link-monitor", authRequired, createLinkMonitorRoutes(db, auditService));
 
-  // Team
-  app.use("/api/team", createTeamRoutes(db, auditService));
-
-  // Online Global Assets (OGA)
-  app.use("/api/oga", createOgaRoutes(db, auditService));
+  app.use("/api/team", authRequired, createTeamRoutes(db, auditService));
 
   // ── Error Handler ──────────────────────────────────
   app.use(errorHandler);
@@ -142,7 +130,7 @@ export function registerRoutes(app: Express, db: NodePgDatabase) {
           console.log(`[cache] Cleaned ${cleaned} expired entries`);
         }
       } catch (err) {
-        console.warn("[cache] Cleanup error:", err);
+        // Silent cleanup failure
       }
     },
     15 * 60 * 1000,
