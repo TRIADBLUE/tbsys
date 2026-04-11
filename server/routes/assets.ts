@@ -5,6 +5,52 @@ import type { AuditService } from "../services/audit.service";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import fs from "fs";
 
+// Public router: serves asset file bytes without auth. Mount FIRST so the
+// authRequired middleware on /api/assets doesn't block favicon/og-image loads
+// from anonymous browsers hitting other TRIADBLUE sites via OGA.
+export function createPublicAssetRoutes(db: NodePgDatabase) {
+  const router = Router();
+
+  // GET /api/assets/file/:id — serve the actual uploaded file (public)
+  router.get("/file/:id", async (req, res, next) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const [asset] = await db
+        .select()
+        .from(assets)
+        .where(eq(assets.id, id))
+        .limit(1);
+
+      if (!asset) {
+        return res.status(404).json({ error: "Not Found" });
+      }
+
+      res.setHeader("Content-Type", asset.mimeType);
+      res.setHeader("Content-Disposition", `inline; filename="${asset.filename}"`);
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.setHeader("Access-Control-Allow-Origin", "*");
+
+      if (asset.data) {
+        res.setHeader("Content-Length", asset.data.length);
+        return res.send(asset.data);
+      }
+
+      if (asset.storagePath && fs.existsSync(asset.storagePath)) {
+        const stat = fs.statSync(asset.storagePath);
+        res.setHeader("Last-Modified", stat.mtime.toUTCString());
+        const stream = fs.createReadStream(asset.storagePath);
+        return stream.pipe(res);
+      }
+
+      return res.status(404).json({ error: "File data not available" });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  return router;
+}
+
 export function createAssetRoutes(
   db: NodePgDatabase,
   auditService: AuditService,

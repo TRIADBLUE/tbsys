@@ -22,7 +22,7 @@ import { createSitePlannerRoutes } from "./routes/site-planner";
 import { createChatRoutes } from "./routes/chat";
 import { createDashboardRoutes } from "./routes/dashboard";
 import { createAnalyticsRoutes } from "./routes/analytics";
-import { createAssetRoutes } from "./routes/assets";
+import { createAssetRoutes, createPublicAssetRoutes } from "./routes/assets";
 import { createLinkMonitorRoutes } from "./routes/link-monitor";
 import { createTeamRoutes } from "./routes/team";
 import { createOgaRoutes } from "./routes/oga";
@@ -105,6 +105,10 @@ export function registerRoutes(app: Express, db: NodePgDatabase) {
 
   app.use("/api/analytics", authRequired, createAnalyticsRoutes(db, auditService));
 
+  // Public asset file serving must be mounted BEFORE the authRequired version
+  // so favicon/og-image requests from anonymous TRIADBLUE site visitors (via OGA)
+  // get through. Express matches earlier mounts first.
+  app.use("/api/assets", createPublicAssetRoutes(db));
   app.use("/api/assets", authRequired, createAssetRoutes(db, auditService));
 
   app.use("/api/link-monitor", authRequired, createLinkMonitorRoutes(db, auditService));
