@@ -25,7 +25,15 @@ export const insertProjectSchema = z.object({
   colorPrimary: hexColor.optional(),
   colorAccent: hexColor.optional(),
   colorBackground: hexColor.optional().nullable(),
-  iconUrl: z.string().url().optional().nullable(),
+  iconUrl: z
+    .string()
+    .max(500)
+    .refine(
+      (v) => v === "" || v.startsWith("/") || /^https?:\/\//.test(v),
+      "Must be an absolute URL (https://…) or an absolute path (/…)",
+    )
+    .optional()
+    .nullable(),
   iconEmoji: z.string().max(10).optional().nullable(),
   status: z
     .enum(["active", "archived", "maintenance", "development", "planned"])
