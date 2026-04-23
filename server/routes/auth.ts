@@ -111,10 +111,92 @@ export function createAuthRoutes(db: NodePgDatabase) {
   });
 
   // GET /api/auth/verify-magic-link
-  // User clicks the link in their email, we log them in
+  // The URL inside the email lands here. We do NOT consume the token on GET —
+  // email clients, Resend's click tracker, and corporate anti-phishing scanners
+  // routinely prefetch GET URLs to check them for malware, which would burn a
+  // one-time token before the human ever clicks it. Instead we render a small
+  // HTML page with a POST form; only the user's click submits it, and only the
+  // POST actually consumes the token.
   router.get("/verify-magic-link", async (req, res) => {
     try {
       const token = req.query.token as string;
+      const baseUrl =
+        process.env.FRONTEND_URL ||
+        (req.headers.origin || `${req.protocol}://${req.get("host")}`);
+
+      if (!token) {
+        return res.redirect(`${baseUrl}/login?error=invalid`);
+      }
+
+      // Validate token without consuming it.
+      const [resetToken] = await db
+        .select()
+        .from(passwordResetTokens)
+        .where(
+          and(
+            eq(passwordResetTokens.token, token),
+            gt(passwordResetTokens.expiresAt, new Date()),
+          ),
+        )
+        .limit(1);
+
+      if (!resetToken || resetToken.usedAt) {
+        return res.redirect(`${baseUrl}/login?error=expired`);
+      }
+
+      // Token is valid and unused — render a prefetch-safe confirmation page.
+      const safeToken = token.replace(/[^a-f0-9]/gi, ""); // defense in depth
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("X-Robots-Tag", "noindex, nofollow");
+      res.send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Sign in to triadblue.systems</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #E9ECF0; margin: 0; padding: 40px 20px; color: #09080E; }
+    .card { max-width: 420px; margin: 8vh auto; background: #fff; border-radius: 12px; padding: 40px 32px; box-shadow: 0 4px 24px rgba(9,8,14,0.08); text-align: center; }
+    h1 { font-size: 22px; font-weight: 700; margin: 0 0 12px; color: #09080E; }
+    p { color: #555; line-height: 1.55; margin: 0 0 24px; }
+    button { background: #001BB2; color: #fff; border: 0; border-radius: 8px; padding: 14px 36px; font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; }
+    button:hover { background: #001490; }
+    .foot { color: #999; font-size: 12px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Sign in to triadblue.systems</h1>
+    <p>Click the button to complete sign-in. This extra step confirms it's a human clicking, not an automated link scanner.</p>
+    <form method="POST" action="/api/auth/verify-magic-link" autocomplete="off">
+      <input type="hidden" name="token" value="${safeToken}" />
+      <button type="submit">Sign In</button>
+    </form>
+    <p class="foot">If you didn't request this, close this page and nothing will happen.</p>
+  </div>
+</body>
+</html>`);
+    } catch (err) {
+      console.error("Verify magic link (GET) error:", err);
+      const baseUrl =
+        process.env.FRONTEND_URL ||
+        (req.headers.origin || `${req.protocol}://${req.get("host")}`);
+      res.redirect(`${baseUrl}/login?error=server`);
+    }
+  });
+
+  // POST /api/auth/verify-magic-link
+  // Actually consumes the token, creates a session, and redirects to the
+  // dashboard. Called by the confirmation page's form — automated prefetchers
+  // and link scanners do not submit POST forms, so the token is safe from
+  // premature consumption.
+  router.post("/verify-magic-link", async (req, res) => {
+    try {
+      const token =
+        (req.body && typeof req.body.token === "string" ? req.body.token : "") ||
+        (typeof req.query.token === "string" ? req.query.token : "");
       const baseUrl =
         process.env.FRONTEND_URL ||
         (req.headers.origin || `${req.protocol}://${req.get("host")}`);
@@ -186,11 +268,10 @@ export function createAuthRoutes(db: NodePgDatabase) {
           console.error("Session save error:", err);
           return res.redirect(`${baseUrl}/login?error=session`);
         }
-        // Redirect to dashboard
         res.redirect(baseUrl + "/");
       });
     } catch (err) {
-      console.error("Verify magic link error:", err);
+      console.error("Verify magic link (POST) error:", err);
       const baseUrl =
         process.env.FRONTEND_URL ||
         (req.headers.origin || `${req.protocol}://${req.get("host")}`);
