@@ -13,7 +13,6 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { SafeImage } from "@/components/ui/safe-image";
 import { useCreateProject, useUpdateProject } from "@/hooks/use-projects";
-import { useToast } from "@/hooks/use-toast";
 import type { Project, ProjectStatus } from "@shared/types";
 
 interface ProjectFormProps {
@@ -25,20 +24,11 @@ export function ProjectForm({ project, onSuccess }: ProjectFormProps) {
   const isEditing = !!project;
   const createProject = useCreateProject();
   const updateProject = useUpdateProject();
-  const { toast } = useToast();
 
   const showSaveError = (err: unknown) => {
     const message =
       err instanceof Error ? err.message : "Unknown error — check DevTools console";
-    const details =
-      err && typeof err === "object" && "details" in err
-        ? JSON.stringify((err as { details: unknown }).details)
-        : undefined;
-    toast({
-      title: isEditing ? "Save failed" : "Create failed",
-      description: details ? `${message} — ${details}` : message,
-      variant: "destructive",
-    });
+    console.error(isEditing ? "Save failed:" : "Create failed:", message, err);
   };
 
   const [form, setForm] = useState({
