@@ -2,6 +2,7 @@ import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { projects } from "../../shared/schema";
 import { DocGeneratorService } from "../services/doc-generator.service";
+import { requireDocWritersEnabled } from "../middleware/doc-writers-gate";
 import type { AuditService } from "../services/audit.service";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
@@ -36,7 +37,7 @@ export function createDocGeneratorRoutes(
 
   // POST /api/projects/:idOrSlug/generate-docs
   // Trigger auto-generation for a specific project
-  router.post("/", async (req, res) => {
+  router.post("/", requireDocWritersEnabled, async (req, res) => {
     try {
       const project = await resolveProject(req.params.idOrSlug as string);
 
@@ -66,7 +67,7 @@ export function createDocGeneratorRoutes(
 
   // POST /api/projects/:idOrSlug/generate-docs/regenerate
   // Regenerate (update) existing auto-generated docs
-  router.post("/regenerate", async (req, res) => {
+  router.post("/regenerate", requireDocWritersEnabled, async (req, res) => {
     try {
       const project = await resolveProject(req.params.idOrSlug as string);
 

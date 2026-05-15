@@ -8,6 +8,7 @@ import {
 } from "../../shared/schema";
 import { docPushSchema } from "../../shared/validators";
 import { validateBody } from "../middleware/validation";
+import { requireDocWritersEnabled } from "../middleware/doc-writers-gate";
 import { githubService } from "../services/github.service";
 import type { AuditService } from "../services/audit.service";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
@@ -85,6 +86,7 @@ export function createDocPushRoutes(
   // POST /api/projects/:idOrSlug/docs/push
   router.post(
     "/",
+    requireDocWritersEnabled,
     validateBody(docPushSchema),
     async (req, res, next) => {
       try {
