@@ -162,6 +162,14 @@ Same as the rest of the ecosystem: all payment processing goes through swipesblu
 - `dist/` should be gitignored (verify before committing).
 - NEVER tell Dean to pull until code has been pushed to origin.
 
+### Environment flags
+
+- `DOC_WRITERS_ENABLED` — When explicitly set to the string `"false"`, the three repo-writing POST endpoints return HTTP 503 with a clear hint:
+  - `POST /api/projects/:idOrSlug/docs/push` (Doc Planner — assembled CLAUDE.md push)
+  - `POST /api/projects/:idOrSlug/generate-docs` (Doc Generator — first-time generation)
+  - `POST /api/projects/:idOrSlug/generate-docs/regenerate` (Doc Generator — re-generation)
+  Default (unset or any value other than `"false"`) is unchanged — all three endpoints work as before. Implemented in `server/middleware/doc-writers-gate.ts`. Added 2026-05-15 to pause auto-writers during the rulebook reorg (Prompt 05/06/2026-30 Part B1); re-enable by unsetting the env var on Railway or setting it to `"true"` once the reorg lands.
+
 ---
 
 ## COMPLETED SYSTEMS
